@@ -1,0 +1,12 @@
+.gradle/
+.idea/
+.tooling/
+.worktrees/
+.superpowers/
+**/build/
+local.properties
+*.iml
+captures/
+app/release/
+*.jks
+*.keystore
