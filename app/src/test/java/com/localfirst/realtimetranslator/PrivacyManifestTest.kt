@@ -26,6 +26,7 @@ class PrivacyManifestTest {
         assertFalse(Manifest.permission.MANAGE_EXTERNAL_STORAGE in permissions)
         assertFalse(Manifest.permission.READ_EXTERNAL_STORAGE in permissions)
         assertTrue(Manifest.permission.RECORD_AUDIO in permissions)
+        assertTrue(Manifest.permission.SYSTEM_ALERT_WINDOW in permissions)
     }
 
     @Test fun applicationDoesNotAllowBackup() {
