@@ -59,8 +59,9 @@ fun RealtimeTranslatorApp(
                     is SessionState.Stopping -> "停止中"
                     is SessionState.Failed -> "启动失败：" + state.notice.name
                 })
-                if (state is SessionState.Idle && state.notice != null) {
-                    Text("上次状态：" + state.notice.name)
+                val previousNotice = (state as? SessionState.Idle)?.notice
+                if (previousNotice != null) {
+                    Text("上次状态：" + previousNotice.name)
                 }
                 if (message != null) Text(message, color = MaterialTheme.colorScheme.error)
                 Button(onClick = { onStart(selected) }, enabled = idle) {
