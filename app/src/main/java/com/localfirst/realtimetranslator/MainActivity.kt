@@ -3,6 +3,8 @@ package com.localfirst.realtimetranslator
 import android.Manifest
 import android.app.Activity
 import android.content.Context
+import android.net.Uri
+import android.provider.Settings
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -38,6 +40,20 @@ class MainActivity : ComponentActivity() {
     private var message by mutableStateOf<String?>(null)
     private var modelReady by mutableStateOf(false)
     private var installingModel by mutableStateOf(false)
+    private var overlayAllowed by mutableStateOf(false)
+    private var requestedOverlayGrant = false
+
+    private val overlayPermission = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { _ ->
+        overlayAllowed = Settings.canDrawOverlays(this)
+        if (requestedOverlayGrant) {
+            SessionBus.setOverlayEnabled(overlayAllowed)
+            message = if (overlayAllowed) "已开启悬浮字幕，切到视频应用即可看到英文。" else
+                "未获得悬浮窗权限；仍可继续使用应用内字幕。"
+        }
+        requestedOverlayGrant = false
+    }
 
     private val modelFolder = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
@@ -93,10 +109,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         modelReady = EnglishModelInstaller.isReady(this)
+        overlayAllowed = Settings.canDrawOverlays(this)
         setContent {
             val session by SessionBus.state.collectAsState()
             val capture by SessionBus.captureStatus.collectAsState()
             val english by SessionBus.englishSubtitles.collectAsState()
+            val overlayEnabled by SessionBus.overlayEnabled.collectAsState()
             RealtimeTranslatorApp(
                 state = session,
                 captureStatus = capture,
@@ -104,10 +122,52 @@ class MainActivity : ComponentActivity() {
                 modelReady = modelReady,
                 installingModel = installingModel,
                 onImportModel = { modelFolder.launch(null) },
+                overlayEnabled = overlayEnabled && overlayAllowed,
+                overlayAllowed = overlayAllowed,
+                onToggleOverlay = ::toggleOverlay,
                 message = message,
                 onStart = ::beginCapture,
                 onStop = ::stopCapture
             )
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        SessionBus.setAppVisible(true)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        overlayAllowed = Settings.canDrawOverlays(this)
+        if (!overlayAllowed) SessionBus.setOverlayEnabled(false)
+    }
+
+    override fun onStop() {
+        SessionBus.setAppVisible(false)
+        super.onStop()
+    }
+
+    private fun toggleOverlay(enabled: Boolean) {
+        if (!enabled) {
+            requestedOverlayGrant = false
+            SessionBus.setOverlayEnabled(false)
+            return
+        }
+        overlayAllowed = Settings.canDrawOverlays(this)
+        if (overlayAllowed) {
+            SessionBus.setOverlayEnabled(true)
+            return
+        }
+        requestedOverlayGrant = true
+        try {
+            overlayPermission.launch(
+                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+            )
+        } catch (_: Exception) {
+            requestedOverlayGrant = false
+            SessionBus.setOverlayEnabled(false)
+            message = "无法进入悬浮窗权限设置，请手动从应用权限中开启。"
         }
     }
 

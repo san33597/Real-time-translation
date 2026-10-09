@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Switch
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
@@ -35,6 +36,9 @@ fun RealtimeTranslatorApp(
     modelReady: Boolean,
     installingModel: Boolean,
     onImportModel: () -> Unit,
+    overlayEnabled: Boolean,
+    overlayAllowed: Boolean,
+    onToggleOverlay: (Boolean) -> Unit,
     message: String?,
     onStart: (AudioSource) -> Unit,
     onStop: () -> Unit,
@@ -79,6 +83,22 @@ fun RealtimeTranslatorApp(
                     Text("先下载并解压指定 sherpa-onnx 英文模型，再选择包含 encoder、decoder、joiner 和 tokens.txt 的文件夹。",
                         style = MaterialTheme.typography.bodySmall)
                 }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("在其他应用上显示英文字幕",
+                        modifier = Modifier.weight(1f).padding(top = 12.dp))
+                    Switch(checked = overlayEnabled, onCheckedChange = onToggleOverlay)
+                }
+                Text(
+                    when {
+                        !overlayAllowed -> "需要授权「显示在其他应用上层」；拒绝后仍能看应用内字幕。"
+                        overlayEnabled -> "开启中：切到视频应用后会在屏幕下方显示字幕。"
+                        else -> "已有悬浮窗权限，开启开关后可在其他应用上显示。"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 Text("选择声音来源（静音不会自动切换到麦克风）")
                 Row(modifier = Modifier.fillMaxWidth()) {
                     RadioButton(

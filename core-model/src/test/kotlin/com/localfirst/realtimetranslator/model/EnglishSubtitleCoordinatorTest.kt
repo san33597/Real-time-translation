@@ -41,6 +41,18 @@ class EnglishSubtitleCoordinatorTest {
         assertEquals("line 1\nline 2", c.state.visibleText)
     }
 
+    @Test fun longHypothesesRemainCurrentAndUntruncated() {
+        val coordinator = EnglishSubtitleCoordinator(partialIntervalMs = 0)
+        coordinator.begin("s", 0)
+        val longText = "first words " + "more speech ".repeat(28) + "latest words"
+        assertTrue(longText.length > 240)
+        assertTrue(coordinator.accept(event(0, 0, longText, false, 0)))
+        assertEquals(longText, coordinator.state.partial)
+        assertEquals("latest words", OverlayCaptionText.latest(coordinator.state, 16))
+        assertTrue(coordinator.accept(event(0, 1, longText, true, 1)))
+        assertEquals(longText, coordinator.state.committed.last().text)
+    }
+
     @Test fun finalNeverThrottled() {
         val c = EnglishSubtitleCoordinator()
         c.begin("s", 0)

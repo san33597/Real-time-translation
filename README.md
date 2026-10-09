@@ -2,6 +2,13 @@
 
 An Android 10+ local-first English-to-Chinese live subtitle project.
 
+## R3.1: optional English floating subtitles over other apps
+
+Development branch: `feat/r3-1-floating-english-captions` (R2 stable and original R3 branches untouched).
+Turn on **在其他应用上显示英文字幕** and grant Android's **Display over other apps** special permission. While the original foreground service continues English ASR, a non-touchable, small bottom-screen overlay shows latest English speech when the app is backgrounded; opening the app hides the extra overlay. Stopping capture removes it. It needs no ML Kit, DeepSeek, network transcription, audio storage or additional audio capture path.
+
+[Android/HyperOS acceptance checklist](docs/verification/r3-1-floating-caption-acceptance.md).
+
 ## R3 development: real-time offline English captions
 
 Development: `feat/r3-english-subtitles`. Preserved R2 baseline: `stable/r2-v0.2.1`.
