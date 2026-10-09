@@ -1,7 +1,7 @@
 # R2 Android audio capture verification
 
 **Implementation date:** 2026-10-09.
-**Status:** R2 automated CI **PASS** on commit `c32e1b4` (GitHub Actions run `37904209856`); user supplied target-phone screenshots showing real system and microphone PCM frame activity. **Core capture smoke PASS based on screenshots; full R2 device acceptance remains OPEN** for pause/mute correlation, stop paths, revocation and longer runs. R1's 6/6 simulation checks are distinct evidence.
+**Status:** R2 core audio CI **PASS** on commit `c32e1b4` (run `37904209856`) with user-confirmed system/mic frames. Video-pause correlation and in-app Stop **PASS**. Notification interaction **FAILED on v0.2.0**; a v0.2.1 code fix is pending new CI and device retest. R2 full acceptance remains **OPEN**, also pending revocation and longer runs. R1's 6/6 simulation checks are separate evidence.
 
 ## Scope
 
@@ -51,6 +51,17 @@ Five screenshots of the installed R2 app and Android system capture consent were
 **Preliminary conclusion:** the device is delivering frames with nonzero samples to both audio paths. Do not treat metadata-only screenshots as proof of 10–15 minute stability, capture from all other apps, lack of protected-media restrictions, stop/revocation safety or audio quality.
 
 **Automated evidence:** [successful CI run 37904209856](https://github.com/san33597/Real-time-translation/actions/runs/37904209856) compiled/tested/assembled the same R2 source; [APK artifact 11603907699](https://github.com/san33597/Real-time-translation/actions/runs/37904209856/artifacts/11603907699).
+
+## Follow-up device feedback: playback pause PASS, in-app Stop PASS, notification UX FAIL (2026-10-09)
+
+User explicitly verified:
+- **PASS:** Pausing the video brings measured audio peak to 0%, while audio frame count continues to advance. This is expected: Android AudioRecord still delivers silent PCM. No automatic microphone fallback was observed.
+- **PASS:** The in-app `停止采集` button returns to the idle session state.
+- **FAIL / BLOCKER:** Notification panel interaction was reported as ineffective, including tapping the notification body. This is a real R2 acceptance gap, not a reason to enter R3.
+
+Source review found the R2 notification supplied an action pending intent but had **no `setContentIntent()`** (so tapping its body had no behavior), and its stop action had icon ID `0`. The **v0.2.1 candidate fix** adds a tap-to-open-App content PendingIntent and an explicit, labeled, non-zero-icon `停止采集` foreground-service action scoped to the current session, plus Robolectric notification-routing tests. **The fix is not yet device-verified.**
+
+For Xiaomi/HyperOS retest: expand the *app's* notification headed `实时翻译 · R2 正在采集音频` and tap `停止采集` there. This is different from the Android system's black `屏幕共享中` privacy pill (which the app does not control). Tapping the app notification body should return to the app without stopping the recording. If the app's notification is absent, inspect the app's notification permission/channel settings and provide a screenshot of the expanded notification shade.
 
 ## Remaining target-device checklist (only initial capture is evidenced)
 
