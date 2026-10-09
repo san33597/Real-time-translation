@@ -58,7 +58,9 @@ class EnglishSubtitleCoordinator(
 
         val newUtterance = update.utteranceId > state.activeUtteranceId
         if (!newUtterance && update.revision <= lastRevision) return false
-        val sanitized = update.text.replace(Regex("\\s+"), " ").trim().take(240)
+        // Keep the full ASR hypothesis: the UI/overlay may truncate only its presentation.
+        // The engine resets utterances at endpoints; text is not a stored transcript.
+        val sanitized = update.text.replace(Regex("\\s+"), " ").trim()
         if (!update.isFinal && !newUtterance &&
             lastPartialAt != Long.MIN_VALUE && update.elapsedRealtimeMs >= lastPartialAt &&
             update.elapsedRealtimeMs - lastPartialAt < partialIntervalMs) return false
