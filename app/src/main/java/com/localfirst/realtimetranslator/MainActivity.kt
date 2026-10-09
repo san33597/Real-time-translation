@@ -26,7 +26,7 @@ import com.localfirst.realtimetranslator.service.RealtimeTranslationService
 import com.localfirst.realtimetranslator.service.SessionBus
 import com.localfirst.realtimetranslator.ui.RealtimeTranslatorApp
 
-/** R1 demo Activity: requests user consent but never records or translates any audio. */
+/** R2: requests fresh capture consent. PCM stays exclusively inside the foreground service. */
 class MainActivity : ComponentActivity() {
     private var pendingSource = AudioSource.SYSTEM
     private var pendingId = ""
@@ -65,16 +65,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val session by SessionBus.state.collectAsState()
+            val capture by SessionBus.captureStatus.collectAsState()
             RealtimeTranslatorApp(
                 state = session,
+                captureStatus = capture,
                 message = message,
-                onStart = ::beginDemo,
-                onStop = ::stopDemo
+                onStart = ::beginCapture,
+                onStop = ::stopCapture
             )
         }
     }
 
-    private fun beginDemo(source: AudioSource) {
+    private fun beginCapture(source: AudioSource) {
         if (SessionBus.state.value !is SessionState.Idle) return
         pendingSource = source
         pendingId = SessionIdentity.new().sessionId
@@ -115,7 +117,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun stopDemo() {
+    private fun stopCapture() {
         val sessionId = SessionBus.state.value.requestOrNull()?.identity?.sessionId
         startService(
             Intent(this, RealtimeTranslationService::class.java)
