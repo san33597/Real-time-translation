@@ -1,16 +1,30 @@
 package com.localfirst.realtimetranslator.model
 
-/** The floating window renders recent speech, not a transcript accumulated across minutes. */
+/** A small subtitle-window projection; never scroll the whole ASR transcript in the overlay. */
 object OverlayCaptionText {
-    fun latest(state: EnglishSubtitleState, maxCharacters: Int = 160): String {
+    /** Characters are an additional bound; the Android view itself is limited to two lines. */
+    fun latest(state: EnglishSubtitleState, maxCharacters: Int = 64): String {
         require(maxCharacters >= 16)
-        val source = (state.partial.takeIf(String::isNotBlank)
-            ?: state.committed.lastOrNull()?.text.orEmpty()).trim()
+        val source = if (state.captionUpdatedAtMs >= 0L) {
+            // After an audio gap this is intentionally blank; never revive an older final.
+            state.displayCaption.trim()
+        } else {
+            // Backward compatibility for callers constructing a state without live projection.
+            (state.partial.takeIf(String::isNotBlank)
+                ?: state.committed.lastOrNull()?.text.orEmpty()).trim()
+        }
         if (source.length <= maxCharacters) return source
         val tail = source.takeLast(maxCharacters)
         val space = tail.indexOf(' ')
-        return if (space >= 0 && space < tail.lastIndex) tail.substring(space + 1).trimStart()
+        return if (space in 0 until tail.lastIndex) tail.substring(space + 1).trimStart()
         else tail.trimStart()
+    }
+
+    /** Uses Android's monotonic elapsedRealtime clock, not wall-clock timestamps. */
+    fun isFresh(state: EnglishSubtitleState, nowMs: Long, holdMs: Long = 3_300L): Boolean {
+        require(holdMs >= 0L)
+        val lastUpdate = state.captionUpdatedAtMs
+        return lastUpdate >= 0 && nowMs >= lastUpdate && nowMs - lastUpdate <= holdMs
     }
 }
 
