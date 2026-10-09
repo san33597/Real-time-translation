@@ -18,6 +18,7 @@ android {
 }
 dependencies {
     implementation(project(":core-model"))
+    implementation(project(":core-audio"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)
     testImplementation(libs.junit)
