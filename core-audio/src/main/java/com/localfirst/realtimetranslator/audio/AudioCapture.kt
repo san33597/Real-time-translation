@@ -17,7 +17,7 @@ import com.localfirst.realtimetranslator.model.*
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.*
 
-/** Capture never persists sound; R2 deliberately measures and discards PCM rather than running ASR. */
+/** PCM is transient: a bounded queue is consumed by the optional local ASR worker. */
 interface AudioCapture {
     fun foregroundStarted()
     fun start()
@@ -33,6 +33,8 @@ class AndroidAudioCapture(
     private val consent: Intent? = null,
     private val onEvent: (CaptureEvent) -> Unit,
     private val onStatus: (CaptureStatus) -> Unit,
+    private val onPcmFrame: ((PcmFrame) -> Unit)? = null,
+    private val onPcmGap: (() -> Unit)? = null,
 ) : AudioCapture {
     private val guard = CaptureStartGuard()
     private val stopped = AtomicBoolean(false)
@@ -43,6 +45,7 @@ class AndroidAudioCapture(
     private var projection: MediaProjection? = null
     private var callback: MediaProjection.Callback? = null
     private var reader: Job? = null
+    private var consumer: Job? = null
     private var sequence = 0L
 
     override fun foregroundStarted() = guard.foregroundStarted()
@@ -92,6 +95,7 @@ class AndroidAudioCapture(
         check(r.state == AudioRecord.STATE_INITIALIZED) { "AudioRecord unavailable" }
         r.startRecording()
         check(r.recordingState == AudioRecord.RECORDSTATE_RECORDING) { "AudioRecord start failed" }
+        if (onPcmFrame != null) consumer = workerScope.launch { consumeLoop() }
         reader = workerScope.launch { readLoop(r) }
     }
 
@@ -106,18 +110,16 @@ class AndroidAudioCapture(
                             request.identity.sessionId, request.identity.audioEpoch,
                             sequence++, SystemClock.elapsedRealtimeNanos(), SAMPLE_RATE, 1,
                             scratch.copyOf(count))
+                        val status = monitor.onFrame(frame)
+                        if (status.frames % 10L == 0L) onStatus(status)
                         val lost = queue.offer(frame)
                         if (lost > 0) {
                             monitor.onGap(lost)
+                            onPcmGap?.invoke()
                             onEvent(CaptureEvent.Gap(frame.sessionId, frame.audioEpoch, lost))
                         }
-                        // R2 has no ASR worker yet: immediately discard queued audio and zero it.
-                        val consumed = queue.poll()
-                        if (consumed != null) {
-                            val status = monitor.onFrame(consumed)
-                            consumed.samples.fill(0)
-                            if (status.frames % 10L == 0L) onStatus(status)
-                        }
+                        if (onPcmFrame == null) queue.poll()?.samples?.fill(0)
+
                     }
                     count == 0 -> delay(10)
                     else -> {
@@ -137,10 +139,34 @@ class AndroidAudioCapture(
         }
     }
 
+    /** Only this worker touches the native ASR stream; producer never waits for inference. */
+    private suspend fun consumeLoop() {
+        try {
+            while (workerScope.isActive && !stopped.get()) {
+                val frame = queue.poll()
+                if (frame == null) {
+                    delay(5)
+                    continue
+                }
+                try {
+                    onPcmFrame?.invoke(frame)
+                } finally {
+                    frame.samples.fill(0)
+                }
+            }
+        } catch (cancel: CancellationException) {
+            throw cancel
+        } catch (_: Exception) {
+            if (!stopped.get()) onEvent(CaptureEvent.ReadFailure(
+                request.identity.sessionId, request.identity.audioEpoch))
+        }
+    }
+
     override suspend fun close() {
         if (!stopped.compareAndSet(false, true)) return
         stopRecording()
         reader?.let { withTimeoutOrNull(1200) { it.cancelAndJoin() } }
+        consumer?.let { withTimeoutOrNull(1200) { it.cancelAndJoin() } }
         release()
     }
 
@@ -148,6 +174,7 @@ class AndroidAudioCapture(
         if (!stopped.compareAndSet(false, true)) return
         stopRecording()
         reader?.cancel()
+        consumer?.cancel()
         release()
     }
 
