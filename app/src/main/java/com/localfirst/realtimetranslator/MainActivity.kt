@@ -21,6 +21,7 @@ import com.localfirst.realtimetranslator.model.ProjectionDecision
 import com.localfirst.realtimetranslator.model.SessionIdentity
 import com.localfirst.realtimetranslator.model.SessionState
 import com.localfirst.realtimetranslator.model.projectionDecision
+import com.localfirst.realtimetranslator.model.requestOrNull
 import com.localfirst.realtimetranslator.service.RealtimeTranslationService
 import com.localfirst.realtimetranslator.service.SessionBus
 import com.localfirst.realtimetranslator.ui.RealtimeTranslatorApp
@@ -115,9 +116,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun stopDemo() {
-        val sessionId = SessionBus.state.value.let { state ->
-            com.localfirst.realtimetranslator.model.run { state.requestOrNull()?.identity?.sessionId }
-        }
+        val sessionId = SessionBus.state.value.requestOrNull()?.identity?.sessionId
         startService(
             Intent(this, RealtimeTranslationService::class.java)
                 .setAction(RealtimeTranslationService.ACTION_STOP)
