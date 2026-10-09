@@ -22,6 +22,14 @@ object SessionBus {
     private val coordinator = EnglishSubtitleCoordinator()
     private val internalEnglish = MutableStateFlow(EnglishSubtitleState())
     val englishSubtitles: StateFlow<EnglishSubtitleState> = internalEnglish.asStateFlow()
+    private val overlaySetting = MutableStateFlow(false)
+    val overlayEnabled: StateFlow<Boolean> = overlaySetting.asStateFlow()
+    private val activityVisibility = MutableStateFlow(false)
+    val appVisible: StateFlow<Boolean> = activityVisibility.asStateFlow()
+
+    // Explicit opt-in, not written to disk; no overlay is enabled on a fresh process.
+    fun setOverlayEnabled(enabled: Boolean) { overlaySetting.value = enabled }
+    fun setAppVisible(visible: Boolean) { activityVisibility.value = visible }
 
     internal fun dispatch(event: SessionEvent) {
         if (event is SessionEvent.StartRequested) {
