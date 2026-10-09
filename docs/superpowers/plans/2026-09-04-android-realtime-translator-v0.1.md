@@ -1,6 +1,6 @@
 # Android 实时翻译器 V0.1 Implementation Plan
 
-**执行状态（2026-09-04）：暂停。** 用户要求先完成开源复核并确认新路线。下列原 Task 1–10 保留作基线，不得继续执行；本文件末尾的 R0–R6 是待批准的修订路线，不是已完成步骤。当前只有部分骨架，不能把文件存在视为测试通过。
+**执行状态（2026-10-09）：用户已授权先实施 R0 + R1。** 原 Task 1–10 只保留基线对照；R1 的模拟 Android 工程、会话状态机及 Service 进入 PR #1，构建和真机验收以实际 CI/设备记录为准，不把提交当作 PASS。R0 的 ML Kit 指标边界、目标手机/ABI 和 R3 native/model 校验仍未闭环。R2–R6 尚未实施，不得把批准 R0+R1 推断为隐私例外或后续工作授权。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
