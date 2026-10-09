@@ -1,7 +1,7 @@
 # R2 Android audio capture verification
 
 **Implementation date:** 2026-10-09.
-**Status:** Android code written; **GitHub CI and target-phone tests required**. R1's user-reported 6/6 simulation smoke PASS does not count as evidence for real R2 PCM capture.
+**Status:** R2 automated CI **PASS** on commit `c32e1b4` (GitHub Actions run `37904209856`); user supplied target-phone screenshots showing real system and microphone PCM frame activity. **Core capture smoke PASS based on screenshots; full R2 device acceptance remains OPEN** for pause/mute correlation, stop paths, revocation and longer runs. R1's 6/6 simulation checks are distinct evidence.
 
 ## Scope
 
@@ -34,7 +34,26 @@ Unit/contract coverage:
 
 **Limit:** Robolectric contracts do not verify actual system playback eligibility, hardware PCM delivery, permissions on Xiaomi/other OEMs, or termination behavior when the OS kills the service.
 
-## Target device checklist (all currently UNVERIFIED)
+## User-provided Android screenshots: preliminary real-device evidence (2026-10-09)
+
+Five screenshots of the installed R2 app and Android system capture consent were provided by the user:
+
+| Observation | Evidence | Scope |
+| --- | --- | --- |
+| System audio mode active | UI says SYSTEM, real capture RUNNING | User screenshot |
+| System audio frame count advancing | UI displays 190 frames and 550 frames in two separate captures | Frames were read; no raw PCM was shared |
+| System audio nonzero sample peak | 31.5% and 33.9% peak shown | Confirms nonzero amplitude; capture from the intended playback app should be corroborated by pause/resume behavior |
+| System audio dropped frames | Both screenshots show 0 | No observed drops over the shown period, not a long-run guarantee |
+| Microphone mode active | UI shows 2,580 frames and 2.0% peak, 0 drops | Nonzero mic capture data; speaking/peak dynamics not independently verified |
+| Android media projection consent | System offers whole-screen vs single-app sharing | Consent UI shown; screenshots alone do not prove both modes work or notification Stop |
+| End-to-end ASR and translation | Not part of R2, absent in UI | Not implemented |
+
+**Preliminary conclusion:** the device is delivering frames with nonzero samples to both audio paths. Do not treat metadata-only screenshots as proof of 10–15 minute stability, capture from all other apps, lack of protected-media restrictions, stop/revocation safety or audio quality.
+
+**Automated evidence:** [successful CI run 37904209856](https://github.com/san33597/Real-time-translation/actions/runs/37904209856) compiled/tested/assembled the same R2 source; [APK artifact 11603907699](https://github.com/san33597/Real-time-translation/actions/runs/37904209856/artifacts/11603907699).
+
+## Remaining target-device checklist (only initial capture is evidenced)
+
 
 1. Install latest R2 debug APK; launch. Both sources should clearly say **R2**, not simulation or finished translation.
 2. Select **system audio**, grant RECORD_AUDIO and the fresh screen-audio projection prompt. Confirm ongoing R2 notification. Play known unprotected English audio/video **from another allowed app**, and verify `已读取音频帧` rises and `瞬时峰值` becomes nonzero during audible playback. Keep a note of which app and whether its capture policy permits this.
