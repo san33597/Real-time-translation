@@ -1,6 +1,6 @@
 # Android 实时翻译器 V0.1 Implementation Plan
 
-**执行状态（2026-09-04）：暂停。** 用户要求先完成开源复核并确认新路线。下列原 Task 1–10 保留作基线，不得继续执行；本文件末尾的 R0–R6 是待批准的修订路线，不是已完成步骤。当前只有部分骨架，不能把文件存在视为测试通过。
+**执行状态（2026-10-09）：用户已授权先实施 R0 + R1。** 原 Task 1–10 只保留基线对照；R1 的模拟 Android 工程、会话状态机及 Service 进入 PR #1，构建和真机验收以实际 CI/设备记录为准，不把提交当作 PASS。R0 最终翻译策略为 ML Kit 本地初译，DeepSeek AI 优化作为默认关闭的可选增强；ML Kit SDK 指标披露不能宣称零遥测。目标手机/ABI、R3 native/model 校验仍未闭环。R2–R6 尚未实施，不得把批准 R0+R1 推断为隐私例外或后续工作授权。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,18 +8,18 @@
 
 **Architecture:** Kotlin/Compose 单 Activity 负责配置和可见状态；前台服务拥有捕获与推理 session。音频、ASR、稳定器、术语保护、翻译和渲染通过有限容量 channel 与 `StateFlow` 串联，外部能力均位于可替换接口后面。
 
-**Tech Stack:** JDK 17、Gradle 9.5、Android Gradle Plugin 9.3.0、compileSdk 37、targetSdk 36、minSdk 29、AGP 内置 Kotlin 2.2.10、Compose BOM 2026.08.00、Coroutines、sherpa-onnx Android 1.13.7、ML Kit Translate 17.0.3、JUnit 4、Robolectric、AndroidX Test。
+**Tech Stack (2026-10-09 decision update):** JDK 17、Gradle 9.5、Android Gradle Plugin 9.3.0、compileSdk 37、targetSdk 36、minSdk 29、AGP 内置 Kotlin 2.2.10、Compose BOM 2026.08.00、Coroutines、sherpa-onnx Android 1.13.7 (candidate)、ML Kit Translate 17.0.3（待集成）、可选 DeepSeek AI refinement（默认关闭，待另行实施）。JUnit 4、Robolectric、AndroidX Test。
 
 **Spec:** `docs/superpowers/specs/2026-09-03-android-realtime-translator-design.md`
 
 ## Global Constraints
 
 - 私人自用、Local-first、无账号、无后台、无数据采集。
-- 音频、识别文本、字幕、术语表和历史不得上传到任何服务器。
+- 音频始终在本地，默认关闭 AI 优化时禁止向 DeepSeek 上传任何文字；用户主动开启时仅发送已稳定的英文句子、相应 ML Kit 中文初译和明确允许的有限术语/上下文，绝不发送音频或全部历史。
 - V0.1 仅支持 English → 简体中文，最低 Android 10（API 29）。
 - 内部音频不可用时只提示回退；必须由用户确认后才启用麦克风。
 - ASR 模型不打进 APK，下载后校验 SHA-256 并存入应用私有目录。
-- 不引入 Analytics、Crashlytics、广告、遥测、远程日志或云端 Provider。
+- 不主动引入 Analytics、Crashlytics、广告、远程日志；ML Kit SDK 的官方性能/使用指标是明确披露的例外，不可把它描述为零遥测。DeepSeek 只允许用户明确选择后用于优化、默认关闭。
 - 所有生产行为遵循 RED–GREEN–REFACTOR；配置/生成文件不承载业务行为。
 - 每个任务结束时运行其测试与 lint，再提交。
 
@@ -346,7 +346,7 @@ Expected: tests/lint/audit PASS and debug APK exists.
 
 - 原“无后台”应为“无后端服务器”：明确允许用户主动启动的前台服务持续工作。
 - no account / backend / cloud ASR / cloud translation / analytics SDK / TTS；不上传音频、文本、字幕、术语与历史。
-- ML Kit SDK 指标传输单独列为 R0 待决项，不能靠放宽审计或排除依赖掩盖。用户未批准例外时，零遥测仍是未解决要求。
+- ML Kit SDK 指标行为已在 R0 明确披露且用户最终选择 ML Kit 初译；后续不得宣称零遥测，仍必须做 SDK 数据流审计。
 - 保留现有九个模块的职责；共享请求/结果身份、PCM 元数据和接口放 `core-model`，避免 `core-subtitle` 与 `core-translation` 双向引用。各新增模块的 `build.gradle.kts`、settings include 和依赖声明必须加入详细执行清单，原计划漏列的部分不能跳过。
 - ASR AAR 由官方固定版本获取并验证，不执行上游 `preBuild` 自动下载任务；不盲目升级/降级当前工具链。现列版本是待兼容性验证的候选，不等于已验证组合。
 - 采集/ASR/翻译分离；PCM gap 与 UI partial 合并是不同策略；final 不能被下一句取消。
@@ -356,7 +356,8 @@ Expected: tests/lint/audit PASS and debug APK exists.
 
 **文档目标文件：** `docs/verification/v0.1-dependency-matrix.md`、`THIRD_PARTY_NOTICES.md`；实际引用时再创建 `third_party/licenses/` 的对应许可文件。
 
-- [ ] 用户批准本路线，明确 ML Kit SDK 指标边界；如不接受，翻译选型单独研究，不暗自改用其他模型。
+- [x] 用户于 2026-10-09 最终选择 ML Kit 本地初译作为默认翻译能力，DeepSeek AI 优化作为独立开关（默认关闭）；用户了解该模式包含 ML Kit 官方披露的 SDK 指标传输，不再坚持零遥测承诺。
+- [ ] R4 接入 ML Kit Translate、预下载/管理英中模型、测试本地质量及 SDK 指标披露；DeepSeek 优化功能需有独立启用/禁用、密钥和隐私验收。
 - [ ] 确认目标手机 Android/API、ABI；没有设备信息时不照搬 Pixel 9 Pro 的 arm64-only 假设。
 - [ ] 固定 sherpa AAR 版本/URL/SHA、模型 revision/四文件组合/精确 bytes/SHA/许可，区分 Kotlin runtime 与模型版本。
 - [ ] 记录 Gradle/AGP/Kotlin/Compose/SDK 的候选与可用性；此前 Gradle loopback 失败仍未解决，不将失败诊断假设写成结论。
@@ -418,7 +419,7 @@ Expected: tests/lint/audit PASS and debug APK exists.
 - [ ] 英文 final 立即锁；中文 final 返回后补到对应句子。稳定译文可以刷新但不是 final；后句 partial 不取消前句 final。
 - [ ] 翻译单独 worker；同句 stable 合并，final 待办有界、优先并明确过载行为；Task 取消与底层完成不是同一件事。
 - [ ] 术语测试涵盖最长匹配、边界、大小写、重复术语、占位符丢失/损坏；降级不能显示伪造译文或残留 token。
-- [ ] 仅在 R0 隐私决定通过后，根据官方 API 接入 ML Kit，模型准备与 runtime 翻译拆开；网络失败不触发任何云端回退。
+- [ ] 根据 R0 的 ML Kit 决策接入本地英中翻译，模型下载/就绪检查与运行期推理分开；DeepSeek 优化默认关闭，绝不因 ML Kit 错误自动触发。
 
 **测试目标：** `SentenceStabilizerTest`、`GlossaryProcessorTest`、`SubtitlePipelineTest`、`MlKitTranslationProviderTest`。除原乱序测试，必须覆盖跨 session、跨 audioEpoch、final 后 stable 晚到、术语版本切换与待办过载。
 
@@ -447,4 +448,43 @@ Expected: tests/lint/audit PASS and debug APK exists.
 - [ ] 验证联网/下载后离线推理、运行中网络、重新联网、日志、备份及许可证；内容外传与 API 指标分别报告。
 - [ ] 无真机、无网络可观测证据、未解决隐私冲突或只有 assemble 成功，均不得宣布 V0.1 完成。
 
-**当前停点：** 研究与待确认文档已整理；R0–R6 全部未执行。等待用户确认路线和 ML Kit 指标边界，之后再安排功能实现。
+**当前停点（2026-10-09）：** R1 模拟工程已经构建成功，用户反馈 6/6 项主要真机检查通过；少量边界场景仍需验收。ML Kit 本地初译 + 默认关闭的 DeepSeek 优化方案已经确定，但 R2–R6、实际翻译与云端功能均未实施。
+
+
+## 2026-10-09 最终架构决策：ML Kit 初译 + 可选 DeepSeek 优化
+
+本节取代此前方案 B 的自管理本地模型设计，也优先于旧版“禁止云端 Provider”的历史约束。翻译策略由用户明确选择，但**尚未授权直接调用云 API 或把调试 APK 描述为已具备翻译能力**。
+
+### 优先级与验收准则（2026-10-09 用户明确强调）
+
+**“让用户绝大多数时候感觉不到翻译系统的存在——字幕及时出现、稳定可读、术语尽量准确。”这是整个产品的第一原则；AI 是可选项，不是实现目标或主链路依赖。**
+
+- **P0 字幕及时：** 先出英文，再输出 ML Kit 本地中文；不等云端，不让转换队列无限积压，保持原句/译文的对应顺序。
+- **P0 观感稳定：** 不频繁闪烁、改写、重排或跳动；对字幕 segment 的可更新时间窗进行管理，历史/已滚动/旧版本不得再被异步结果修改；优化新旧文差别很小可直接放弃。
+- **P0 持久可靠：** 持续播放、权限拒绝、应用切换、模型未就绪、停止/重启、异常/超时都不能导致默默上传内容或失控后台运行。关注 CPU/内存、发热、耗电和长时间字幕连续性。
+- **P1 术语与可读性：** 先做好英文分句、术语表、专有名词保护、本地初译稳定性，作为默认模式的必达要求。
+- **P2 DeepSeek：** 默认关闭，不影响本地字幕主链路；即便开启，也仅允许及时、有实质作用的**一次**同句优化，不能覆盖用户已阅读/滚动过的文本。
+- **验证：** 优先使用真实目标 Android 手机测量系统音频→英文 partial/stable→中文字幕各阶段 P50/P95、吞吐/丢段、字幕变化频率、排队深度、连续运行发热耗电。先形成测量基线，再制定有证据的定量验收阈值；不能未测便声称毫秒级体验。先验收纯 ML Kit 使用体验，再验收 AI ON 不使任何 P0 指标退化。
+
+### 主线：ML Kit 快速初译
+
+- `sherpa-onnx` 端侧识别英语，快速显示英文 partial；识别段 stable/final 时，由 `MlKitTranslationProvider` 在设备端翻译为简体中文，并立即展示第一版。
+- ML Kit 模型需要提前下载并明确标记 Ready；模型未准备好时保留英文字幕并提示下载，绝不触发 DeepSeek 兜底；结束会话后正常释放 Translator。
+- 受 ML Kit SDK 官方披露约束：输入/输出在设备端处理，但性能/使用等指标可能由 SDK 向 Google 发出。UI/文档明确披露，不能保证零遥测。
+
+### 可选增强：DeepSeek AI refinement（默认 OFF）
+
+- 用户在设置中主动配置 DeepSeek API Key 并开启 `AI 优化字幕`，提供持续可见的云端优化状态，随时可关闭。
+- 每一段先产生 ML Kit 中文字幕，然后仅对相同 `stable/final` 英文句子异步提交云端优化；请求只包含该句英文、该句 ML Kit 初译，及经过用户明确允许的少量术语/上下文。禁止传输原始音频、ASR partial、整段历史或日志。
+- 云端延迟不得阻挡本地字幕；优化成功后仅在 **同一 sessionId/audioEpoch/utteranceId/revision** 且该字幕仍在可更新时间窗内时替换该条 ML Kit 中文，不能修改已经锁定/滚动过去的字幕。旧请求取消，失败/限流/余额不足保留本地译文。
+- 不能自动启用 AI 优化、不能因为本地错误触发云端、不能自动向其他云厂商兜底。用户关闭时立即禁止新请求并取消现有可取消任务。
+- Key 用 Keystore 支持的安全存储，禁入代码/日志/备份；显示外发文本范围及可能产生的费用，HTTPS + 请求超时、并发/速率限制、稳定的字幕顺序、内容最小化。云端仍受服务商条款约束。
+
+### 验收
+
+- AI 优化关闭时 DeepSeek 调用必须为 0，ML Kit 仍正常翻译。
+- 开启时本地字幕先显示，云优化可改进对应仍然显示的同一段；云断网、迟到、取消、额度不足、模型缺失都不能覆盖新字幕。
+- 切换开关、重启/切换会话、音源代次变化、锁定/历史字幕、术语占位符损坏和部分结果乱序必须通过单元/集成测试。
+- 本地翻译不等于零出站：审计 ML Kit SDK 指标网络行为，并与用户明确授权的 DeepSeek 文本请求区分。
+
+后续工程路线仍为 R2 音频采集 → R3 端侧识别 → R4 ML Kit + 稳定器 → 可选 DeepSeek refinement → R5/R6 浮窗与验收。细节见 `docs/decisions/2026-10-09-provider-architecture.md`。
