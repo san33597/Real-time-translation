@@ -19,6 +19,27 @@ class OverlayCaptionTextTest {
         assertTrue(result.length <= 48)
     }
 
+    @Test fun liveCaptionWindowTakesPriorityOverLongHypothesis() {
+        val source = "A VERY LONG STORY FROM THE BEGINNING ".repeat(8)
+        val state = EnglishSubtitleState(
+            partial = source,
+            displayCaption = "THE NEW WORDS",
+            captionUpdatedAtMs = 100L,
+        )
+        assertEquals("THE NEW WORDS", OverlayCaptionText.latest(state))
+        assertTrue(OverlayCaptionText.isFresh(state, nowMs = 200L))
+        assertFalse(OverlayCaptionText.isFresh(state, nowMs = 3_500L))
+    }
+
+    @Test fun audioGapMustNotBringBackEarlierFinal() {
+        val state = EnglishSubtitleState(
+            committed = listOf(EnglishSubtitle(0, "OLD FINAL WORDS")),
+            displayCaption = "",
+            captionUpdatedAtMs = 0,
+        )
+        assertEquals("", OverlayCaptionText.latest(state))
+    }
+
     @Test fun noOverlayWhileAppVisibleOrStoppedOrDisabled() {
         val request = SessionRequest(SessionIdentity("test"), AudioSource.SYSTEM)
         assertTrue(OverlayVisibility.shouldDisplay(SessionState.Running(request), true, false))
