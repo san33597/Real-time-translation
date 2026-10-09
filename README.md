@@ -2,7 +2,15 @@
 
 An Android 10+ local-first English-to-Chinese live subtitle project.
 
-## Current implementation: R2 real audio capture (device verification pending)
+## R3 development: real-time offline English captions
+
+Development: `feat/r3-english-subtitles`. Preserved R2 baseline: `stable/r2-v0.2.1`.
+
+R3 retains R2's system playback/microphone capture and notification controls, and connects the bounded PCM consumer to an offline sherpa-onnx English streaming model. Only English partial/final subtitles are displayed. **No ML Kit, DeepSeek, cloud ASR or translated captions are included in R3.** Models are user-imported through Android's folder picker and verified before use.
+
+See [R3 model installation, build and phone acceptance](docs/verification/r3-english-asr-acceptance.md).
+
+## Previous milestone: R2 audio capture
 
 The R2 build **captures real transient PCM** through Android AudioPlaybackCapture or the user-approved microphone. It immediately consumes and zeroes frames after updating metadata (frame count, peak energy); **no audio file, ASR, translation or subtitles** are produced yet. Android playback may be silent for apps that disallow capture; silence never automatically enables the microphone. Requires CI + real-device acceptance.
 
