@@ -16,6 +16,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.localfirst.realtimetranslator.asr.EnglishModelInstaller
 import com.localfirst.realtimetranslator.model.AudioSource
 import com.localfirst.realtimetranslator.model.ProjectionDecision
 import com.localfirst.realtimetranslator.model.SessionIdentity
@@ -26,11 +31,35 @@ import com.localfirst.realtimetranslator.service.RealtimeTranslationService
 import com.localfirst.realtimetranslator.service.SessionBus
 import com.localfirst.realtimetranslator.ui.RealtimeTranslatorApp
 
-/** R2: requests fresh capture consent. PCM stays exclusively inside the foreground service. */
+/** R3: English live subtitles from the R2 capture service; model import is explicit. */
 class MainActivity : ComponentActivity() {
     private var pendingSource = AudioSource.SYSTEM
     private var pendingId = ""
     private var message by mutableStateOf<String?>(null)
+    private var modelReady by mutableStateOf(false)
+    private var installingModel by mutableStateOf(false)
+
+    private val modelFolder = registerForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null && !installingModel) {
+            installingModel = true
+            message = "正在校验并导入英文模型…"
+            lifecycleScope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        EnglishModelInstaller.install(this@MainActivity, uri)
+                    }
+                    modelReady = EnglishModelInstaller.isReady(this@MainActivity)
+                    message = "英文模型安装完成，可开始 R3 识别。"
+                } catch (e: Exception) {
+                    message = "模型导入失败：" + (e.message ?: "请检查模型文件")
+                } finally {
+                    installingModel = false
+                }
+            }
+        }
+    }
 
     private val notifications = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -63,12 +92,18 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        modelReady = EnglishModelInstaller.isReady(this)
         setContent {
             val session by SessionBus.state.collectAsState()
             val capture by SessionBus.captureStatus.collectAsState()
+            val english by SessionBus.englishSubtitles.collectAsState()
             RealtimeTranslatorApp(
                 state = session,
                 captureStatus = capture,
+                englishSubtitles = english,
+                modelReady = modelReady,
+                installingModel = installingModel,
+                onImportModel = { modelFolder.launch(null) },
                 message = message,
                 onStart = ::beginCapture,
                 onStop = ::stopCapture
@@ -78,6 +113,10 @@ class MainActivity : ComponentActivity() {
 
     private fun beginCapture(source: AudioSource) {
         if (SessionBus.state.value !is SessionState.Idle) return
+        if (!modelReady || installingModel) {
+            message = "请先导入并校验英文识别模型。"
+            return
+        }
         pendingSource = source
         pendingId = SessionIdentity.new().sessionId
         message = null

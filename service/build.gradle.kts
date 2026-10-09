@@ -19,6 +19,7 @@ android {
 dependencies {
     implementation(project(":core-model"))
     implementation(project(":core-audio"))
+    implementation(project(":core-asr"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)
     testImplementation(libs.junit)

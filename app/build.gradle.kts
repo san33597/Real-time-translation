@@ -9,8 +9,8 @@ android {
         applicationId = "com.localfirst.realtimetranslator"
         minSdk = 29
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.2.1"
+        versionCode = 4
+        versionName = "0.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures {
@@ -27,6 +27,7 @@ android {
 dependencies {
     implementation(project(":core-model"))
     implementation(project(":service"))
+    implementation(project(":core-asr"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime)

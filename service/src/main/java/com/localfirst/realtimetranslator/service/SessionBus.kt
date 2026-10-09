@@ -1,6 +1,9 @@
 package com.localfirst.realtimetranslator.service
 
+import com.localfirst.realtimetranslator.model.AsrUpdate
 import com.localfirst.realtimetranslator.model.CaptureStatus
+import com.localfirst.realtimetranslator.model.EnglishSubtitleCoordinator
+import com.localfirst.realtimetranslator.model.EnglishSubtitleState
 import com.localfirst.realtimetranslator.model.requestOrNull
 import com.localfirst.realtimetranslator.model.SessionEvent
 import com.localfirst.realtimetranslator.model.SessionState
@@ -10,17 +13,28 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-/** In-process projection of state owned exclusively by RealtimeTranslationService. */
+/** In-memory foreground-service state only; no persisted transcripts or network. */
 object SessionBus {
     private val internalState = MutableStateFlow<SessionState>(SessionState.Idle())
     val state: StateFlow<SessionState> = internalState.asStateFlow()
     private val internalCapture = MutableStateFlow<CaptureStatus?>(null)
     val captureStatus: StateFlow<CaptureStatus?> = internalCapture.asStateFlow()
+    private val coordinator = EnglishSubtitleCoordinator()
+    private val internalEnglish = MutableStateFlow(EnglishSubtitleState())
+    val englishSubtitles: StateFlow<EnglishSubtitleState> = internalEnglish.asStateFlow()
 
     internal fun dispatch(event: SessionEvent) {
-        if (event is SessionEvent.StartRequested) internalCapture.value = null
+        if (event is SessionEvent.StartRequested) {
+            internalCapture.value = null
+            coordinator.begin(event.request.identity.sessionId, event.request.identity.audioEpoch)
+            internalEnglish.value = coordinator.state
+        }
         internalState.update { reduce(it, event) }
-        if (internalState.value is SessionState.Idle) internalCapture.value = null
+        if (internalState.value is SessionState.Idle) {
+            internalCapture.value = null
+            coordinator.clear()
+            internalEnglish.value = coordinator.state
+        }
     }
 
     internal fun updateCapture(status: CaptureStatus) {
@@ -28,11 +42,26 @@ object SessionBus {
         if (active?.identity?.sessionId == status.sessionId) internalCapture.value = status
     }
 
+    internal fun updateEnglish(update: AsrUpdate) {
+        if (internalState.value !is SessionState.Running &&
+            internalState.value !is SessionState.Starting) return
+        if (coordinator.accept(update)) internalEnglish.value = coordinator.state
+    }
+
+    internal fun onAudioGap(sessionId: String, epoch: Long) {
+        val active = internalState.value.requestOrNull() ?: return
+        if (active.identity.sessionId != sessionId || active.identity.audioEpoch != epoch) return
+        coordinator.gap()
+        internalEnglish.value = coordinator.state
+    }
+
     internal fun onServiceInterrupted() {
-        val current = internalState.value
-        if (current !is SessionState.Idle) {
-            internalState.value = SessionState.Idle(com.localfirst.realtimetranslator.model.Notice.SESSION_INTERRUPTED)
+        if (internalState.value !is SessionState.Idle) {
+            internalState.value =
+                SessionState.Idle(com.localfirst.realtimetranslator.model.Notice.SESSION_INTERRUPTED)
         }
         internalCapture.value = null
+        coordinator.clear()
+        internalEnglish.value = coordinator.state
     }
 }
