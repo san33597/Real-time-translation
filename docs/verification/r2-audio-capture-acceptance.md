@@ -1,7 +1,7 @@
 # R2 Android audio capture verification
 
 **Implementation date:** 2026-10-09.
-**Status:** R2 core audio CI **PASS** on commit `c32e1b4` (run `37904209856`) with user-confirmed system/mic frames. Video-pause correlation and in-app Stop **PASS**. The notification-body tap issue from v0.2.0 was fixed in v0.2.1: latest CI **PASS** (commit `2142d3c`, run `37906470005`) and the user confirmed that tapping the notification successfully returns to the app. **Notification action `停止采集` is not separately confirmed**, nor is projection revocation/extended running. Full R2 acceptance **OPEN**; R1 smoke checks are separate evidence.
+**Status:** R2 core audio CI **PASS** on commit `c32e1b4` (run `37904209856`) with user-confirmed system/mic frames. Video-pause correlation and in-app Stop **PASS**. The notification-body tap issue from v0.2.0 was fixed in v0.2.1: latest CI **PASS** (commit `2142d3c`, run `37906470005`) and the user confirmed that tapping the notification successfully returns to the app. **Notification action `停止采集` PASS (user-reported on v0.2.1)**: tapping the button dismisses the notification and ends application capture. The R2 primary device smoke checks now PASS. Projection revocation, OS/process interruption, and extended running remain OPEN; overall R2 edge-case acceptance is not yet complete. R1 smoke checks are separate evidence.
 
 ## Scope
 
@@ -63,16 +63,16 @@ Source review found the R2 notification supplied an action pending intent but ha
 
 For Xiaomi/HyperOS retest: expand the *app's* notification headed `实时翻译 · R2 正在采集音频` and tap `停止采集` there. This is different from the Android system's black `屏幕共享中` privacy pill (which the app does not control). Tapping the app notification body should return to the app without stopping the recording. If the app's notification is absent, inspect the app's notification permission/channel settings and provide a screenshot of the expanded notification shade.
 
-## v0.2.1 notification body retest (user feedback, 2026-10-09)
+## v0.2.1 notification navigation and Stop retest (user feedback, 2026-10-09)
 
 - **PASS (user-reported):** Latest app notification can now be tapped to return to the real-time translation app; previously this did nothing in v0.2.0.
 - **PASS (CI):** `2142d3c`, [Actions run 37906470005](https://github.com/san33597/Real-time-translation/actions/runs/37906470005) built and tested the notification fix.
-- **NOT YET CONFIRMED:** Whether tapping the **separate expanded notification action** `停止采集` stops capture and removes the notification. Opening the app on body tap does not test the Stop action.
+- **PASS (user-reported):** Tapping the **separate expanded notification action** `停止采集` ends capture and closes/removes the notification. This was independently reported after the body-tap PASS and therefore verifies the notification Stop path rather than merely app navigation.
 - **NOT YET CONFIRMED:** Explicit Android projection revocation and long-run capture stability.
 
 The preceding FAIL above is historical feedback for **v0.2.0**, not the status of the notification body in v0.2.1.
 
-## Remaining target-device checklist (core capture and body tap verified; remaining edge cases open)
+## Remaining target-device checklist (core capture, app Stop and notification Stop verified; edge cases open)
 
 
 1. Install latest R2 debug APK; launch. Both sources should clearly say **R2**, not simulation or finished translation.
