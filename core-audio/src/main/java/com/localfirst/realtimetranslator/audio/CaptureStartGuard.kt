@@ -8,8 +8,11 @@ class CaptureStartGuard {
     private var foregroundReady = false
     private var grantConsumed = false
     fun foregroundStarted() { foregroundReady = true }
+    fun requireForeground() {
+        check(foregroundReady) { "Foreground service must start before capture" }
+    }
     fun consumeProjectionGrant() {
-        check(foregroundReady) { "Foreground service must start before projection consumption" }
+        requireForeground()
         check(!grantConsumed) { "Projection grant is one-use" }
         grantConsumed = true
     }
