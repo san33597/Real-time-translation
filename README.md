@@ -2,6 +2,14 @@
 
 An Android 10+ local-first English-to-Chinese live subtitle project.
 
+## R3.2: short, automatically segmented English captions
+
+Branch: `feat/r3-2-caption-segmentation`. English capture, offline sherpa ASR, the R3.1 overlay switch and permissions remain unchanged.
+
+A separate display-only caption segmenter starts a new visible chunk after a recognition pause or when the previous display has become too long. The floating subtitle now occupies **at most 2 lines / 64 characters**, and its text expires after **3.3 seconds** without changes. The in-app caption preview is shortened too. Full recognized partial/final source remains unchanged in RAM; this is not punctuation recovery, translation, or a change to the ASR model.
+
+[Setup and R3.2 real-device verification](docs/verification/r3-2-caption-segmentation-acceptance.md).
+
 ## R3.1: optional English floating subtitles over other apps
 
 Development branch: `feat/r3-1-floating-english-captions` (R2 stable and original R3 branches untouched).

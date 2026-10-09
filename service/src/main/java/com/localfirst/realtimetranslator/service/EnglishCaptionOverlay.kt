@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
+import android.os.SystemClock
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -29,11 +30,17 @@ internal class EnglishCaptionOverlay(private val context: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private var textView: TextView? = null
     private var displayed = ""
+    private var lastTextUpdateMs = -1L
     private val expire = Runnable { hide() }
 
     fun render(frame: OverlayFrame) {
         if (!OverlayVisibility.shouldDisplay(frame.state, frame.enabled, frame.appVisible) ||
             !Settings.canDrawOverlays(context)) {
+            hide()
+            return
+        }
+        // Do not resurrect the previous sentence when the user returns from another app.
+        if (!OverlayCaptionText.isFresh(frame.subtitles, SystemClock.elapsedRealtime())) {
             hide()
             return
         }
@@ -45,9 +52,9 @@ internal class EnglishCaptionOverlay(private val context: Context) {
         if (textView == null) {
             val view = TextView(context).apply {
                 setTextColor(Color.WHITE)
-                textSize = 17f
+                textSize = 16f
                 gravity = Gravity.CENTER
-                maxLines = 3
+                maxLines = 2
                 ellipsize = TextUtils.TruncateAt.END
                 setPadding(dp(16), dp(11), dp(16), dp(11))
                 background = GradientDrawable().apply {
@@ -76,11 +83,14 @@ internal class EnglishCaptionOverlay(private val context: Context) {
                 return
             }
         }
-        if (text != displayed) {
+        if (text != displayed || frame.subtitles.captionUpdatedAtMs != lastTextUpdateMs) {
             displayed = text
+            lastTextUpdateMs = frame.subtitles.captionUpdatedAtMs
             textView?.text = text
             handler.removeCallbacks(expire)
-            handler.postDelayed(expire, 5500L)
+            val remaining = (3_300L -
+                (SystemClock.elapsedRealtime() - lastTextUpdateMs)).coerceAtLeast(1L)
+            handler.postDelayed(expire, remaining)
         }
     }
 
@@ -89,6 +99,7 @@ internal class EnglishCaptionOverlay(private val context: Context) {
         val old = textView
         textView = null
         displayed = ""
+        lastTextUpdateMs = -1L
         if (old != null) {
             try { windowManager.removeViewImmediate(old) } catch (_: RuntimeException) { }
         }

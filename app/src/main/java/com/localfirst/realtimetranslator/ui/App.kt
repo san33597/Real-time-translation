@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.localfirst.realtimetranslator.model.AudioSource
 import com.localfirst.realtimetranslator.model.CaptureStatus
 import com.localfirst.realtimetranslator.model.EnglishSubtitleState
+import com.localfirst.realtimetranslator.model.OverlayCaptionText
 import com.localfirst.realtimetranslator.model.SessionState
 
 @Composable
@@ -52,7 +53,7 @@ fun RealtimeTranslatorApp(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("R3 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
+                Text("R3.2 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
                 Text("离线英语识别测试 · 暂不翻译 · 不保存音频和识别内容")
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
@@ -60,13 +61,11 @@ fun RealtimeTranslatorApp(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text("English captions", style = MaterialTheme.typography.labelLarge)
-                        englishSubtitles.committed.forEach {
-                            Text(it.text, style = MaterialTheme.typography.bodyLarge)
-                        }
-                        if (englishSubtitles.partial.isNotBlank()) {
-                            Text(englishSubtitles.partial,
-                                style = MaterialTheme.typography.titleMedium)
-                        } else if (englishSubtitles.committed.isEmpty()) {
+                        val caption = OverlayCaptionText.latest(englishSubtitles, 100)
+                        if (caption.isNotBlank()) {
+                            Text(caption, style = MaterialTheme.typography.titleMedium,
+                                maxLines = 3)
+                        } else {
                             Text(
                                 if (state is SessionState.Running) "Listening for English speech…"
                                 else "Start capture to display English subtitles.",
