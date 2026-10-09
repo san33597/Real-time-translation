@@ -34,6 +34,19 @@ Tap **开始模拟会话** to verify permissions, notification, simulated runnin
 
 ## Product goal
 
+## Primary product rule: subtitles should feel invisible
+
+**Timely, stable, readable, reasonably accurate captions are the product; AI is an optional enhancement.** Users should be able to enjoy continuous video with AI refinement permanently OFF. Do not spend latency, readability or baseline reliability to squeeze out marginal cloud translation gains.
+
+Priority order:
+1. **P0 — responsiveness:** local ASR must surface English promptly; stabilized segments should receive ML Kit Chinese subtitles immediately upon translation completion, with bounded queues and no wait for cloud results.
+2. **P0 — readability and continuity:** timestamps/sequence must remain in order, text should not flicker, jump, reflow unnecessarily or be overwritten by stale results; sensible segmentation and overlay layout are more important than rewriting already-read subtitles.
+3. **P0 — reliability:** long-running sessions, permission denial, source changes, stop/restart, model-not-ready, backpressure, offline use (after model setup) and thermal pressure must fail safely and preserve the currently useful text.
+4. **P1 — translation and terminology:** glossary protection, proper nouns and sentence segmentation should improve local output before requesting cloud refinement.
+5. **P2 — optional AI refinement:** OFF by default, independent from the critical display path; a single refinement of the same current subtitle only when on time, useful and visually nondisruptive. Never overwrite old/locked subtitles or cause subtitle backlog.
+
+Acceptance philosophy: first demonstrate a **smooth ML Kit-only experience on a real phone**. Record capture→English partial/stable→Chinese latency distributions, dropped/late segments, queue depth, subtitle churn, CPU/RAM, battery and heat, plus interruption/recovery behavior. Derive concrete pass thresholds from device tests rather than inventing latency guarantees. Only add/enable cloud improvement after the baseline holds; compare ON vs OFF without worsening P0 metrics.
+
 The eventual V0.1 will capture eligible system audio (or user-approved microphone input), recognize English speech locally with sherpa-onnx, stabilize segments, protect technical terms, translate locally into simplified Chinese, and display captions in-app and in an overlay.
 
 **2026-10-09 final translation design:** ML Kit Translate is the always-on first-pass English→Simplified Chinese translator. **DeepSeek AI refinement is strictly optional (OFF by default)**. When enabled and explicitly authorized, each stable/final recognized English sentence is translated locally by ML Kit first. The cloud then may improve the same subtitle using the English source and the ML Kit Chinese draft; results replace only the *same current sentence* while it remains eligible for update. Cloud failure, quota exhaustion or late response never blocks or erases ML Kit subtitles.

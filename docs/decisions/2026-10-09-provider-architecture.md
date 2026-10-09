@@ -4,6 +4,15 @@
 **Supersedes:** Earlier 2026-10-09 Option B self-managed local translator choice. This new user instruction expressly selects **ML Kit first; DeepSeek AI optimization optional**.
 **Not authorized:** Automatic cloud transmission, audio upload or activation by default.
 
+## Non-negotiable user experience priority
+
+**First make subtitles timely, stable, readable and terminology-conscious; DeepSeek is strictly optional.** A smooth **ML Kit-only** session is the primary acceptance goal. In particular:
+- P0: minimize capture-to-readable-caption latency, prevent queue buildup, handle partial→stable→final ordering and prevent flicker/reflow or a late callback overwriting current text.
+- P0: keep long sessions and stop/start/revocation safe; protect subtitle order, overlay readability, stability under load, energy/thermal behavior and offline baseline after required model download.
+- P1: make English segmentation and glossary protection good enough to read naturally without AI.
+- P2: optional DeepSeek may improve only the same active subtitle if timely and materially helpful; must not delay ML Kit, mutate scrolled/history captions, or visibly churn text.
+- Measure actual Android device results for latency distributions, stale/dropped updates, subtitle-change frequency, performance and recovery. Set numeric thresholds from baseline data, not hypothetical speed claims. Acceptance is blocked if AI ON degrades P0 behavior.
+
 ## User-visible behavior
 
 **Default (refinement OFF):** local sherpa-onnx English recognition → stabilized English segment → ML Kit on-device EN→ZH translation → immediately show Chinese subtitle.
