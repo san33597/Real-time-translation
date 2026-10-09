@@ -62,6 +62,14 @@ class SessionReducerTest {
             reduce(awaiting, SessionEvent.MicrophoneConfirmed("one")))
     }
 
+    @Test fun staleAudioEpochCannotMutateCurrentCapture() {
+        val next = system.copy(identity = SessionIdentity("one", audioEpoch = 2))
+        val state = SessionState.Starting(next)
+        assertEquals(state, reduce(state, SessionEvent.CaptureStarted("one", audioEpoch = 1)))
+        assertEquals(SessionState.Running(next),
+            reduce(state, SessionEvent.CaptureStarted("one", audioEpoch = 2)))
+    }
+
     @Test fun failedStartCanBeCleanedUp() {
         val failed = reduce(SessionState.Starting(system), SessionEvent.CaptureFailed("one"))
         assertTrue(failed is SessionState.Failed)

@@ -14,6 +14,7 @@ fun reduce(state: SessionState, event: SessionEvent): SessionState {
         return if (state is SessionState.Stopping) state else SessionState.Stopping(request)
     }
     if (event.sessionIdOrNull() != request.identity.sessionId) return state
+    if (event.captureEpochOrNull()?.let { it != request.identity.audioEpoch } == true) return state
     return when (state) {
         is SessionState.PreparingModels -> when (event) {
             is SessionEvent.ModelsReady ->
@@ -71,4 +72,13 @@ private fun SessionEvent.sessionIdOrNull(): String? = when (this) {
     is SessionEvent.MicrophoneDeclined -> sessionId
     is SessionEvent.StopRequested -> sessionId
     is SessionEvent.StopCompleted -> sessionId
+}
+
+/** Only capture-related events carry audio epoch; permissions are bound to the session ID. */
+private fun SessionEvent.captureEpochOrNull(): Long? = when (this) {
+    is SessionEvent.CaptureStarted -> audioEpoch
+    is SessionEvent.CaptureFailed -> audioEpoch
+    is SessionEvent.ProjectionRevoked -> audioEpoch
+    is SessionEvent.InternalAudioUnavailable -> audioEpoch
+    else -> null
 }
