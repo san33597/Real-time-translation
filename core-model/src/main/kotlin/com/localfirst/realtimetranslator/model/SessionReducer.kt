@@ -36,7 +36,7 @@ fun reduce(state: SessionState, event: SessionEvent): SessionState {
         }
         is SessionState.Running -> when (event) {
             is SessionEvent.CaptureFailed -> SessionState.Failed(request, Notice.CAPTURE_FAILED)
-            is SessionEvent.ProjectionRevoked -> SessionState.Stopping(request)
+            is SessionEvent.ProjectionRevoked -> SessionState.Stopping(request, Notice.PROJECTION_REVOKED)
             is SessionEvent.InternalAudioUnavailable ->
                 if (request.source == AudioSource.SYSTEM) SessionState.AwaitingMicrophoneConfirmation(request) else state
             else -> state
