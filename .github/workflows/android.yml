@@ -1,4 +1,7 @@
 name: Android R1 checks
+concurrency:
+  group: android-r1-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 on:
   push:
     branches: [main, 'feat/**']
