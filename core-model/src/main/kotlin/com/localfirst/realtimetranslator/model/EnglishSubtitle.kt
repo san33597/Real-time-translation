@@ -22,6 +22,10 @@ data class EnglishSubtitleState(
     val committed: List<EnglishSubtitle> = emptyList(),
     val partial: String = "",
     val activeUtteranceId: Long = 0,
+    // A short visual-only slice of the currently recognized speech.
+    val displayCaption: String = "",
+    // elapsedRealtime clock; -1 means no live caption has been observed.
+    val captionUpdatedAtMs: Long = -1L,
 ) {
     val visibleText: String
         get() = (committed.map { it.text } + listOfNotNull(partial.takeIf(String::isNotBlank)))
@@ -42,6 +46,7 @@ class EnglishSubtitleCoordinator(
     private var lastRevision = -1L
     private var lastPartialAt = Long.MIN_VALUE
     private var lastFinalId = -1L
+    private val displaySegmenter = LiveCaptionSegmenter()
 
     @Synchronized fun begin(sessionId: String, audioEpoch: Long) {
         require(sessionId.isNotBlank() && audioEpoch >= 0)
@@ -49,6 +54,7 @@ class EnglishSubtitleCoordinator(
         lastRevision = -1
         lastPartialAt = Long.MIN_VALUE
         lastFinalId = -1
+        displaySegmenter.reset()
     }
 
     @Synchronized fun accept(update: AsrUpdate): Boolean {
@@ -70,6 +76,7 @@ class EnglishSubtitleCoordinator(
             lastPartialAt = Long.MIN_VALUE
         }
         lastRevision = update.revision
+        val visible = displaySegmenter.project(update.utteranceId, sanitized, update.elapsedRealtimeMs)
         if (update.isFinal) {
             lastFinalId = update.utteranceId
             state = state.copy(
@@ -78,19 +85,27 @@ class EnglishSubtitleCoordinator(
                     (state.committed + EnglishSubtitle(update.utteranceId, sanitized))
                         .takeLast(maxFinalLines),
                 partial = "",
+                displayCaption = visible,
+                captionUpdatedAtMs = update.elapsedRealtimeMs,
             )
             lastRevision = -1
             lastPartialAt = Long.MIN_VALUE
         } else {
             lastPartialAt = update.elapsedRealtimeMs
-            state = state.copy(activeUtteranceId = update.utteranceId, partial = sanitized)
+            state = state.copy(
+                activeUtteranceId = update.utteranceId,
+                partial = sanitized,
+                displayCaption = visible,
+                captionUpdatedAtMs = update.elapsedRealtimeMs,
+            )
         }
         return true
     }
 
     /** Audio gaps must not preserve a misleading unfinished hypothesis. */
     @Synchronized fun gap() {
-        state = state.copy(partial = "")
+        displaySegmenter.reset()
+        state = state.copy(partial = "", displayCaption = "", captionUpdatedAtMs = 0L)
         lastPartialAt = Long.MIN_VALUE
     }
 
@@ -99,5 +114,6 @@ class EnglishSubtitleCoordinator(
         lastRevision = -1
         lastFinalId = -1
         lastPartialAt = Long.MIN_VALUE
+        displaySegmenter.reset()
     }
 }
