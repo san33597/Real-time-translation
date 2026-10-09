@@ -24,6 +24,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collect
 
 /** R3 performs on-device English ASR. Translation, cloud calls and disk transcripts are absent. */
 class RealtimeTranslationService : Service() {
@@ -31,11 +33,22 @@ class RealtimeTranslationService : Service() {
     private var session: TranslationSession? = null
     private var captureResources: AndroidSessionResources? = null
     private var stopping = false
+    private lateinit var floatingCaptions: EnglishCaptionOverlay
 
     override fun onCreate() {
         super.onCreate()
         val channel = NotificationChannel(CHANNEL_ID, "实时音频采集", NotificationManager.IMPORTANCE_LOW)
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        floatingCaptions = EnglishCaptionOverlay(this)
+        scope.launch {
+            combine(SessionBus.state, SessionBus.englishSubtitles,
+                SessionBus.overlayEnabled, SessionBus.appVisible
+            ) { state, subtitle, enabled, appVisible ->
+                OverlayFrame(state, subtitle, enabled, appVisible)
+            }.collect { frame ->
+                floatingCaptions.render(frame)
+            }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -206,6 +219,7 @@ class RealtimeTranslationService : Service() {
         captureResources?.abort()
         captureResources = null
         session = null
+        if (::floatingCaptions.isInitialized) floatingCaptions.close()
         scope.cancel()
         SessionBus.onServiceInterrupted()
         super.onDestroy()
