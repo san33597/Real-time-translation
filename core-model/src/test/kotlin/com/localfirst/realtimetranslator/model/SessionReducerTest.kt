@@ -50,9 +50,19 @@ class SessionReducerTest {
         assertEquals(starting, reduce(starting, SessionEvent.ProjectionRevoked("one")))
     }
 
-    @Test fun projectionRevocationRequiresCleanup() {
-        assertEquals(SessionState.Stopping(system),
-            reduce(SessionState.Running(system), SessionEvent.ProjectionRevoked("one")))
+    @Test fun projectionRevocationRequiresCleanupAndReportsReason() {
+        val revoking = reduce(SessionState.Running(system), SessionEvent.ProjectionRevoked("one"))
+        assertEquals(SessionState.Stopping(system, Notice.PROJECTION_REVOKED), revoking)
+        assertEquals(SessionState.Idle(Notice.PROJECTION_REVOKED),
+            reduce(revoking, SessionEvent.StopCompleted("one")))
+    }
+
+    @Test fun captureFailureReasonSurvivesStopRequest() {
+        val failed = reduce(SessionState.Running(system), SessionEvent.CaptureFailed("one"))
+        val stopping = reduce(failed, SessionEvent.StopRequested("one"))
+        assertEquals(SessionState.Failed(system, Notice.CAPTURE_FAILED), stopping)
+        assertEquals(SessionState.Idle(Notice.CAPTURE_FAILED),
+            reduce(stopping, SessionEvent.StopCompleted("one")))
     }
 
     @Test fun internalAudioFailureNeedsExplicitUserChoice() {
