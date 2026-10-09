@@ -1,6 +1,6 @@
 # Android 实时翻译器 V0.1 Implementation Plan
 
-**执行状态（2026-10-09）：用户已授权先实施 R0 + R1。** 原 Task 1–10 只保留基线对照；R1 的模拟 Android 工程、会话状态机及 Service 进入 PR #1，构建和真机验收以实际 CI/设备记录为准，不把提交当作 PASS。R0 的 ML Kit 指标边界、目标手机/ABI 和 R3 native/model 校验仍未闭环。R2–R6 尚未实施，不得把批准 R0+R1 推断为隐私例外或后续工作授权。
+**执行状态（2026-10-09）：用户已授权先实施 R0 + R1。** 原 Task 1–10 只保留基线对照；R1 的模拟 Android 工程、会话状态机及 Service 进入 PR #1，构建和真机验收以实际 CI/设备记录为准，不把提交当作 PASS。R0 翻译策略已选 B（本地模型默认无遥测，允许未来手动配置 DeepSeek 等云 Provider）；目标手机/ABI、R3 native/model 校验及本地翻译模型选型仍未闭环。R2–R6 尚未实施，不得把批准 R0+R1 推断为隐私例外或后续工作授权。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Architecture:** Kotlin/Compose 单 Activity 负责配置和可见状态；前台服务拥有捕获与推理 session。音频、ASR、稳定器、术语保护、翻译和渲染通过有限容量 channel 与 `StateFlow` 串联，外部能力均位于可替换接口后面。
 
-**Tech Stack:** JDK 17、Gradle 9.5、Android Gradle Plugin 9.3.0、compileSdk 37、targetSdk 36、minSdk 29、AGP 内置 Kotlin 2.2.10、Compose BOM 2026.08.00、Coroutines、sherpa-onnx Android 1.13.7、ML Kit Translate 17.0.3、JUnit 4、Robolectric、AndroidX Test。
+**Tech Stack (2026-10-09 decision update):** JDK 17、Gradle 9.5、Android Gradle Plugin 9.3.0、compileSdk 37、targetSdk 36、minSdk 29、AGP 内置 Kotlin 2.2.10、Compose BOM 2026.08.00、Coroutines、sherpa-onnx Android 1.13.7 (candidate)、本地翻译模型/运行时待选型（不用 ML Kit）；可选用户主动开启的云翻译 Provider 待另行实施。JUnit 4、Robolectric、AndroidX Test。
 
 **Spec:** `docs/superpowers/specs/2026-09-03-android-realtime-translator-design.md`
 
@@ -356,7 +356,8 @@ Expected: tests/lint/audit PASS and debug APK exists.
 
 **文档目标文件：** `docs/verification/v0.1-dependency-matrix.md`、`THIRD_PARTY_NOTICES.md`；实际引用时再创建 `third_party/licenses/` 的对应许可文件。
 
-- [ ] 用户批准本路线，明确 ML Kit SDK 指标边界；如不接受，翻译选型单独研究，不暗自改用其他模型。
+- [x] 用户于 2026-10-09 选择方案 B：本地、可审计、运行时无遥测为默认目标，放弃 ML Kit；未来允许用户自行配置 DeepSeek 等云服务，但必须单独明确开启，不能暗中联网。
+- [ ] 固定具体 Android 本地翻译模型/运行时、来源、许可、校验、体积、内存、性能及零遥测审计（不得将选 B 等同于模型已选定）。
 - [ ] 确认目标手机 Android/API、ABI；没有设备信息时不照搬 Pixel 9 Pro 的 arm64-only 假设。
 - [ ] 固定 sherpa AAR 版本/URL/SHA、模型 revision/四文件组合/精确 bytes/SHA/许可，区分 Kotlin runtime 与模型版本。
 - [ ] 记录 Gradle/AGP/Kotlin/Compose/SDK 的候选与可用性；此前 Gradle loopback 失败仍未解决，不将失败诊断假设写成结论。
@@ -448,3 +449,18 @@ Expected: tests/lint/audit PASS and debug APK exists.
 - [ ] 无真机、无网络可观测证据、未解决隐私冲突或只有 assemble 成功，均不得宣布 V0.1 完成。
 
 **当前停点：** 研究与待确认文档已整理；R0–R6 全部未执行。等待用户确认路线和 ML Kit 指标边界，之后再安排功能实现。
+
+
+## 2026-10-09 方案 B 翻译策略修订（覆盖原 ML Kit/云服务排除条款）
+
+本次选择只确认产品策略与 Provider 边界，原 Task 7 / R4 中的 ML Kit 实现和 MLA 授权门槛不再适用。本节**优先于**前文与其冲突的 ML Kit/“不允许云 Provider”表述；其余音频、ASR、C 稳定器及 R1 生命周期设计不变。
+
+- **默认 LOCAL：** 采用待选定的自主管理 Android 本地翻译模型，不集成 ML Kit。仅用户主动下载时联网；完成下载后运行时不得自动网络请求、日志上传或指标遥测，必须通过依赖与网络检查确认。
+- **可选 CLOUD：** 通过 `TranslationProvider` 可插拔适配 DeepSeek（兼容 OpenAI 的聊天补全 API）等，独立于 LocalProvider；默认禁用。启用前明确告知“将上传识别后的英文文本（以及用户选择的上下文）到服务商”，并显示使用云服务状态、费用与取消方式。音频始终只在本地 ASR 处理。
+- **禁止自动云回退：** 本地模型缺失/失效/超时、网络断开、Provider 异常、限流或欠费时不得擅自切换 Provider；保留英文字幕和可恢复错误提示。切换时关闭/清理旧请求，按 sessionId/audioEpoch/utteranceId/revision 丢弃过时结果。
+- **API 凭据：** 用户自己输入密钥；不写入源码、APK、仓库、日志、请求错误消息、翻译历史或备份。使用 Android Keystore 支撑的凭据加密保管及清除，直连仍存在用户设备上的密钥暴露风险；如将来开放给多用户，再独立设计服务端代理。
+- **Cloud payload：** 仅稳定句子（stable/final）的必要文字/可选短上下文，不发送 PCM、原始音频、未稳定 partial、完整字幕历史、无关元数据；重试有界，无额外内容日志。允许用户明确选择不保留服务端上下文，具体受 provider 条款约束。
+- **实施顺序：** R2 系统音频 → R3 sherpa-onnx 本地 ASR → R4 本地翻译及 C 稳定器 → 独立可选 Provider 集成（需另外授权和网络/隐私测试）→ R5/R6 完成 UI/性能/真机验收。当前 R1 仍是模拟运行。
+- **测试：** 本地模式断网运行、网络零出站监测、Provider 选择持久化、密钥不泄露、禁用云时零云请求、未经授权不可云调用、取消/切换/超时/乱序不覆盖、只上传批准文字、网络失败不自动使用其他 Provider。
+
+决策记录见 `docs/decisions/2026-10-09-provider-architecture.md`。

@@ -36,7 +36,11 @@ Tap **开始模拟会话** to verify permissions, notification, simulated runnin
 
 The eventual V0.1 will capture eligible system audio (or user-approved microphone input), recognize English speech locally with sherpa-onnx, stabilize segments, protect technical terms, translate locally into simplified Chinese, and display captions in-app and in an overlay.
 
-**Privacy gate:** ML Kit's SDK diagnostics/usage metrics conflict with the initial zero-telemetry promise. No translation SDK is integrated until this policy is explicitly resolved. Audio/text never leave the device.
+**2026-10-09 product decision: Option B.** Prefer a self-managed, auditable on-device translation engine with no runtime telemetry; do not bundle ML Kit. The actual local model/runtime is **not yet selected**, and zero-telemetry is a target requiring dependency and network verification, not a verified fact about R1.
+
+An **optional, user-configured cloud provider** (e.g. DeepSeek via its OpenAI-compatible API) may be added in a separate phase. It must be OFF by default, require explicit user action and visible disclosure that **recognized English text** (potentially including context) is sent to that provider; raw audio must never be sent. The app must never silently fall back from local translation to cloud. The cloud mode is **not** offline or zero-egress. No cloud connector or API-key handling has been implemented yet.
+
+Design decision: [Translation provider and privacy policy](docs/decisions/2026-10-09-provider-architecture.md).
 
 Technical records: [R0 dependency and decision matrix](docs/verification/v0.1-dependency-matrix.md), [R1 acceptance](docs/verification/r0-r1-acceptance.md), [original specification](docs/superpowers/specs/2026-09-03-android-realtime-translator-design.md).
 
