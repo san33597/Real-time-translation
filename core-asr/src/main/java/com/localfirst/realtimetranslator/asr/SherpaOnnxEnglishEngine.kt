@@ -81,7 +81,7 @@ class SherpaOnnxEnglishEngine(
 
     override fun resetAfterGap() {
         if (closed || finished) return
-        if (partial.isNotBlank()) publish(partial, true)
+        // Dropped PCM breaks continuity. Never mark a damaged hypothesis final.
         recognizer.reset(stream)
         utterance++
         revision = 0
