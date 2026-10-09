@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import com.localfirst.realtimetranslator.asr.EnglishModelInstaller
 import com.localfirst.realtimetranslator.model.AudioSource
 import com.localfirst.realtimetranslator.model.CaptureEvent
 import com.localfirst.realtimetranslator.model.SessionEvent
@@ -24,7 +25,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
-/** R2 owns real audio capture; ASR, translation and recording-to-disk remain absent. */
+/** R3 performs on-device English ASR. Translation, cloud calls and disk transcripts are absent. */
 class RealtimeTranslationService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var session: TranslationSession? = null
@@ -66,7 +67,12 @@ class RealtimeTranslationService : Service() {
         }
         val request = SessionRequest(SessionIdentity(id), source)
         SessionBus.dispatch(SessionEvent.StartRequested(request))
-        // R2 reuses the lifecycle reducer but still has no ASR model or translation engine.
+        if (!EnglishModelInstaller.isReady(this)) {
+            SessionBus.dispatch(SessionEvent.ModelsMissing(id))
+            SessionBus.dispatch(SessionEvent.StopCompleted(id))
+            stopSelf()
+            return
+        }
         SessionBus.dispatch(SessionEvent.ModelsReady(id))
         if (source == AudioSource.SYSTEM) SessionBus.dispatch(SessionEvent.ProjectionGranted(id))
 
@@ -89,6 +95,7 @@ class RealtimeTranslationService : Service() {
             consent = consent,
             eventSink = { event -> scope.launch { onCaptureEvent(event) } },
             statusSink = { status -> scope.launch { SessionBus.updateCapture(status) } },
+            englishSink = { update -> scope.launch { SessionBus.updateEnglish(update) } },
         )
         resources.onForegroundStarted()
         captureResources = resources
@@ -111,7 +118,8 @@ class RealtimeTranslationService : Service() {
         val epoch = request.identity.audioEpoch
         when (event) {
             is CaptureEvent.Frame -> Unit // PCM never travels on the app state bus
-            is CaptureEvent.Gap -> Unit // dropped frames only; silence does not imply a bad source
+            is CaptureEvent.Gap -> SessionBus.onAudioGap(
+                event.sessionId, event.audioEpoch)
             is CaptureEvent.ReadFailure -> {
                 if (event.sessionId != id || event.audioEpoch != epoch) return
                 SessionBus.dispatch(SessionEvent.CaptureFailed(id, epoch))
@@ -178,10 +186,10 @@ class RealtimeTranslationService : Service() {
         val mode = if (source == AudioSource.SYSTEM) "系统音频" else "麦克风"
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-            .setContentTitle("实时翻译 · R2 正在采集音频")
+            .setContentTitle("实时字幕 · R3 英文识别")
             .setContentText("$mode；点击返回应用，展开可停止采集")
             .setStyle(NotificationCompat.BigTextStyle().bigText(
-                "$mode 正在采集；点击通知返回应用，或展开后点击「停止采集」。未进行语音识别或翻译。"
+                "$mode 正在进行本地英文语音识别。点击返回应用，或展开点击「停止采集」。不进行翻译。"
             ))
             .setContentIntent(openAction)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
