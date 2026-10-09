@@ -76,7 +76,7 @@ class RealtimeTranslationService : Service() {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
         }
         try {
-            ServiceCompat.startForeground(this, NOTIFICATION_ID, notification(id, source), serviceType)
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, buildCaptureNotification(id, source), serviceType)
         } catch (_: Exception) {
             SessionBus.dispatch(SessionEvent.CaptureFailed(id))
             SessionBus.dispatch(SessionEvent.StopCompleted(id))
@@ -151,11 +151,27 @@ class RealtimeTranslationService : Service() {
         }
     }
 
-    private fun notification(id: String, source: AudioSource): Notification {
+    /**
+     * R2 phone fix: the notification body and its Stop action are two separate user controls.
+     * Tapping the body opens the existing Activity; only the Stop action ends capture.
+     * Do not confuse Android's own "屏幕共享中" privacy indicator with this notification.
+     */
+    fun buildCaptureNotification(id: String, source: AudioSource): Notification {
+        val openIntent = (packageManager.getLaunchIntentForPackage(packageName)
+            ?: Intent().setClassName(packageName, "$packageName.MainActivity"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val openAction = PendingIntent.getActivity(
+            this, 0, openIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Distinct immutable, session-scoped PendingIntent: a stale old notification cannot
+        // accidentally stop a newer session. A notification press is a user-initiated action.
         val stopIntent = Intent(this, RealtimeTranslationService::class.java)
             .setAction(ACTION_STOP)
+            .setData(android.net.Uri.parse("realtimetranslator://capture/stop/$id"))
             .putExtra(EXTRA_SESSION_ID, id)
-        val stopAction = PendingIntent.getService(
+        val stopAction = PendingIntent.getForegroundService(
             this, id.hashCode(), stopIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -163,9 +179,17 @@ class RealtimeTranslationService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle("实时翻译 · R2 正在采集音频")
-            .setContentText("$mode；仅采集验证，尚无语音识别和翻译")
+            .setContentText("$mode；点击返回应用，展开可停止采集")
+            .setStyle(NotificationCompat.BigTextStyle().bigText(
+                "$mode 正在采集；点击通知返回应用，或展开后点击「停止采集」。未进行语音识别或翻译。"
+            ))
+            .setContentIntent(openAction)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOnlyAlertOnce(true)
             .setOngoing(true)
-            .addAction(0, "停止", stopAction)
+            .setAutoCancel(false)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "停止采集", stopAction)
             .build()
     }
 
