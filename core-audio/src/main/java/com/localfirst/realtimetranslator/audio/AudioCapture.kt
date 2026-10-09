@@ -49,6 +49,7 @@ class AndroidAudioCapture(
 
     override fun start() {
         check(!stopped.get() && record == null)
+        guard.requireForeground()
         val p = if (request.source == AudioSource.SYSTEM) {
             guard.consumeProjectionGrant()
             check(resultCode == Activity.RESULT_OK && consent != null) { "Fresh projection consent required" }
