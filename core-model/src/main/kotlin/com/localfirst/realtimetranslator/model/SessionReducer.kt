@@ -11,7 +11,7 @@ fun reduce(state: SessionState, event: SessionEvent): SessionState {
     val request = state.requestOrNull() ?: return state
     if (event is SessionEvent.StopRequested) {
         if (event.sessionId != null && event.sessionId != request.identity.sessionId) return state
-        return if (state is SessionState.Stopping) state else SessionState.Stopping(request)
+        return if (state is SessionState.Stopping || state is SessionState.Failed) state else SessionState.Stopping(request)
     }
     if (event.sessionIdOrNull() != request.identity.sessionId) return state
     if (event.captureEpochOrNull()?.let { it != request.identity.audioEpoch } == true) return state
@@ -31,7 +31,7 @@ fun reduce(state: SessionState, event: SessionEvent): SessionState {
         is SessionState.Starting -> when (event) {
             is SessionEvent.CaptureStarted -> SessionState.Running(request)
             is SessionEvent.CaptureFailed -> SessionState.Failed(request, Notice.CAPTURE_FAILED)
-            is SessionEvent.ProjectionRevoked -> SessionState.Stopping(request)
+            is SessionEvent.ProjectionRevoked -> SessionState.Stopping(request, Notice.PROJECTION_REVOKED)
             else -> state
         }
         is SessionState.Running -> when (event) {
@@ -47,7 +47,7 @@ fun reduce(state: SessionState, event: SessionEvent): SessionState {
             else -> state
         }
         is SessionState.Stopping -> when (event) {
-            is SessionEvent.StopCompleted -> SessionState.Idle()
+            is SessionEvent.StopCompleted -> SessionState.Idle(state.notice)
             else -> state
         }
         is SessionState.Failed -> when (event) {

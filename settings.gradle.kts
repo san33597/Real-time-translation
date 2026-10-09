@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "RealtimeTranslator"
-include(":app", ":core-model", ":service")
+include(":app", ":core-model", ":core-audio", ":service")

@@ -1,6 +1,6 @@
-name: Android R1 checks
+name: Android R2 checks
 concurrency:
-  group: android-r1-${{ github.workflow }}-${{ github.ref }}
+  group: android-r2-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 on:
   push:
@@ -23,9 +23,9 @@ jobs:
       - name: Tests and debug APK
         run: |
           chmod +x ./gradlew
-          ./gradlew :core-model:test :service:testDebugUnitTest :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace
+          ./gradlew :core-model:test :core-audio:testDebugUnitTest :service:testDebugUnitTest :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: realtime-translator-r1-debug
+          name: realtime-translator-r2-debug
           path: app/build/outputs/apk/debug/*.apk

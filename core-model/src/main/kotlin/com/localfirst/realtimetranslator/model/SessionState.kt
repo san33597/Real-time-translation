@@ -7,7 +7,7 @@ sealed interface SessionState {
     data class Starting(val request: SessionRequest) : SessionState
     data class Running(val request: SessionRequest) : SessionState
     data class AwaitingMicrophoneConfirmation(val request: SessionRequest) : SessionState
-    data class Stopping(val request: SessionRequest) : SessionState
+    data class Stopping(val request: SessionRequest, val notice: Notice? = null) : SessionState
     data class Failed(val request: SessionRequest, val notice: Notice) : SessionState
 }
 
