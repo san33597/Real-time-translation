@@ -53,6 +53,25 @@ class EnglishSubtitleCoordinatorTest {
         assertEquals(longText, coordinator.state.committed.last().text)
     }
 
+    @Test fun displaySplitsButFullFinalAndSessionGuardsSurvive() {
+        val coordinator = EnglishSubtitleCoordinator(partialIntervalMs = 0)
+        coordinator.begin("s", 0)
+        assertTrue(coordinator.accept(event(0, 0, "THE OLD SENTENCE", false, 100)))
+        assertTrue(coordinator.accept(event(0, 1,
+            "THE OLD SENTENCE A NEW ONE", false, 1500)))
+        assertEquals("A NEW ONE", coordinator.state.displayCaption)
+        assertTrue(coordinator.accept(event(0, 2,
+            "THE OLD SENTENCE A NEW ONE", true, 1501)))
+        assertEquals("THE OLD SENTENCE A NEW ONE",
+            coordinator.state.committed.single().text)
+        assertEquals("A NEW ONE", coordinator.state.displayCaption)
+        assertFalse(coordinator.accept(event(0, 3, "LATE AND WRONG", true, 1502)))
+        assertTrue(coordinator.accept(event(1, 0, "NEXT PERSON SPEAKS", false, 1600)))
+        assertEquals("NEXT PERSON SPEAKS", coordinator.state.displayCaption)
+        coordinator.gap()
+        assertEquals("", OverlayCaptionText.latest(coordinator.state))
+    }
+
     @Test fun finalNeverThrottled() {
         val c = EnglishSubtitleCoordinator()
         c.begin("s", 0)
