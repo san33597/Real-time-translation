@@ -67,7 +67,7 @@ fun RealtimeTranslatorApp(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("R3.6 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
+                Text("R3.6.1 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
                 Text("离线英语识别测试 · 暂不翻译 · 不保存音频和识别内容")
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
@@ -147,8 +147,6 @@ fun RealtimeTranslatorApp(
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
-                            Text("字幕队列最近显示等待：${debug.lastCaptionWaitMs}ms",
-                                style = MaterialTheme.typography.bodySmall)
                             asrStats?.let { stats ->
                                 Text(
                                     "窗口长度：${stats.windowMs}ms · 重叠：${stats.overlapMs}ms" +
@@ -180,7 +178,7 @@ fun RealtimeTranslatorApp(
                     Text("Parakeet v3 INT8", modifier = Modifier.padding(top = 12.dp))
                 }
                 if (asrModel == AsrModel.PARAKEET) {
-                    Text("Parakeet 识别窗口（停止采集后可切换）",
+                    Text("Parakeet 识别窗口（默认 R3.5 基线）",
                         style = MaterialTheme.typography.titleMedium)
                     ParakeetWindowPreset.entries.forEach { preset ->
                         Row(modifier = Modifier.fillMaxWidth()) {
@@ -192,7 +190,7 @@ fun RealtimeTranslatorApp(
                             Text(preset.label, modifier = Modifier.padding(top = 12.dp))
                         }
                     }
-                    Text("窗口越短，首次输出可能越快，但短词漏识别可能增加。请对同一片段对比。",
+                    Text("3.2 秒保留 R3.5 原识别与字幕调度；2.4 秒和 2.0 秒仅用于实验，可能漏词。",
                         style = MaterialTheme.typography.bodySmall)
                 }
                 Text("Zipformer：${if (zipformerReady) "已安装" else "未安装"}；" +
@@ -274,7 +272,7 @@ fun RealtimeTranslatorApp(
                 }
                 OutlinedButton(onClick = onStop, enabled = !idle) { Text("停止采集") }
                 Text(
-                    "R3.6 Parakeet 为分块离线 ASR；可对比 2.4s / 2.0s / 3.2s 的实时性与准确率。",
+                    "R3.6.1 默认恢复 R3.5 的 3.2s 识别与字幕等待机制，短窗口需手动选择。",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
