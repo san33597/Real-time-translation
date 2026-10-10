@@ -195,7 +195,7 @@ fun RealtimeTranslatorApp(
                     Text("窗口越短，首次输出可能越快，但短词漏识别可能增加。请对同一片段对比。",
                         style = MaterialTheme.typography.bodySmall)
                 }
-                Text("Zipformer：${if (zipformerReady)} "已安装" else "未安装"}；" +
+                Text("Zipformer：${if (zipformerReady) "已安装" else "未安装"}；" +
                     "Parakeet：${if (parakeetReady) "已安装" else "未安装"}",
                     style = MaterialTheme.typography.bodySmall)
                 Text(if (modelReady) "当前模型文件：已就绪" else "当前模型未安装，请先导入")
