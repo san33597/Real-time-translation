@@ -18,4 +18,8 @@ data class AsrRuntimeStats(
     val overlapOnlyResults: Long = 0,
     /** Wall time between offering a window and beginning to decode it. */
     val lastQueueWaitMs: Long = 0,
+    /** Latency from a completed audio window entering the queue until decode finishes. */
+    val lastWindowTurnaroundMs: Long = 0,
+    val windowMs: Int = 0,
+    val overlapMs: Int = 0,
 )
