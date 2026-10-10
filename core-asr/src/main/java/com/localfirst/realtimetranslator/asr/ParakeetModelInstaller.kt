@@ -57,7 +57,7 @@ object ParakeetModelInstaller {
         } + 64 * MIB
         val freeBytes = StatFs(parent.absolutePath).availableBytes
         check(freeBytes >= requiredBytes) {
-            "存储空间不足：Parakeet 需要约 \${requiredBytes / MIB} MB 可用空间"
+            "存储空间不足：Parakeet 需要约 ${requiredBytes / MIB} MB 可用空间"
         }
 
         val staged = File(parent, ".parakeet-v3-staging")
