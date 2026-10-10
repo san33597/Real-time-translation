@@ -24,6 +24,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.localfirst.realtimetranslator.model.AudioSource
+import com.localfirst.realtimetranslator.model.AsrModel
+import com.localfirst.realtimetranslator.model.AsrRuntimeStats
 import com.localfirst.realtimetranslator.model.CaptureStatus
 import com.localfirst.realtimetranslator.model.EnglishSubtitleState
 import com.localfirst.realtimetranslator.model.OverlayCaptionText
@@ -33,6 +35,12 @@ import com.localfirst.realtimetranslator.model.SessionState
 fun RealtimeTranslatorApp(
     state: SessionState,
     captureStatus: CaptureStatus?,
+    asrStats: AsrRuntimeStats?,
+    asrModel: AsrModel,
+    zipformerReady: Boolean,
+    parakeetReady: Boolean,
+    onChooseAsr: (AsrModel) -> Unit,
+    onImportParakeet: () -> Unit,
     englishSubtitles: EnglishSubtitleState,
     modelReady: Boolean,
     installingModel: Boolean,
@@ -54,7 +62,7 @@ fun RealtimeTranslatorApp(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("R3.3 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
+                Text("R3.4 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
                 Text("离线英语识别测试 · 暂不翻译 · 不保存音频和识别内容")
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
@@ -105,6 +113,13 @@ fun RealtimeTranslatorApp(
                                     MaterialTheme.colorScheme.error
                                 else MaterialTheme.colorScheme.onSurface,
                             )
+                            asrStats?.let { stats ->
+                                Text("Parakeet 窗口：已解码 ${stats.decodedWindows} · 跳过 ${stats.droppedWindows}" +
+                                    " · 最近推理 ${stats.lastDecodeMs}ms",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (stats.droppedWindows > 0) MaterialTheme.colorScheme.error
+                                        else MaterialTheme.colorScheme.onSurface)
+                            }
                             Text("最近 ASR 更新（仅内存，停止后清空）",
                                 style = MaterialTheme.typography.labelLarge)
                             debug.recent.takeLast(6).forEach { entry ->
@@ -118,12 +133,28 @@ fun RealtimeTranslatorApp(
                         }
                     }
                 }
-                Text(if (modelReady) "英文离线模型：已校验" else "英文离线模型：尚未安装")
+                Text("当前识别引擎（停止采集后可切换）",
+                    style = MaterialTheme.typography.titleMedium)
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    RadioButton(selected = asrModel == AsrModel.ZIPFORMER,
+                        onClick = { onChooseAsr(AsrModel.ZIPFORMER) }, enabled = idle && !installingModel)
+                    Text("Zipformer", modifier = Modifier.padding(top = 12.dp, end = 12.dp))
+                    RadioButton(selected = asrModel == AsrModel.PARAKEET,
+                        onClick = { onChooseAsr(AsrModel.PARAKEET) }, enabled = idle && !installingModel)
+                    Text("Parakeet v3 INT8", modifier = Modifier.padding(top = 12.dp))
+                }
+                Text("Zipformer：${if (zipformerReady) "已安装" else "未安装"}；" +
+                    "Parakeet：${if (parakeetReady) "已安装" else "未安装"}",
+                    style = MaterialTheme.typography.bodySmall)
+                Text(if (modelReady) "当前模型文件：已就绪" else "当前模型未安装，请先导入")
                 OutlinedButton(
                     onClick = onImportModel, enabled = idle && !installingModel
-                ) { Text(if (installingModel) "导入中…" else "导入英文模型文件夹") }
+                ) { Text("导入 Zipformer 文件夹") }
+                OutlinedButton(
+                    onClick = onImportParakeet, enabled = idle && !installingModel
+                ) { Text(if (installingModel) "模型导入中…" else "导入 Parakeet v3 INT8 文件夹") }
                 if (!modelReady) {
-                    Text("先下载并解压指定 sherpa-onnx 英文模型，再选择包含 encoder、decoder、joiner 和 tokens.txt 的文件夹。",
+                    Text("Parakeet 使用 encoder.int8.onnx / decoder.int8.onnx / joiner.int8.onnx / tokens.txt；导入可能需要 1GB 左右临时空间。",
                         style = MaterialTheme.typography.bodySmall)
                 }
                 Row(
@@ -181,7 +212,7 @@ fun RealtimeTranslatorApp(
                 }
                 OutlinedButton(onClick = onStop, enabled = !idle) { Text("停止采集") }
                 Text(
-                    "R3 仅检验真实 English partial/final 字幕，ML Kit 与 DeepSeek 均未接入。",
+                    "R3.4 Parakeet 为分块离线 ASR，字幕可能延迟数秒；原 Zipformer 流式模式可随时回退。",
                     style = MaterialTheme.typography.bodySmall
                 )
             }

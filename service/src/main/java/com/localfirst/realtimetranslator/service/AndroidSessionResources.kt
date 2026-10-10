@@ -5,11 +5,15 @@ import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
 import com.localfirst.realtimetranslator.asr.EnglishModelInstaller
+import com.localfirst.realtimetranslator.asr.ParakeetModelInstaller
+import com.localfirst.realtimetranslator.asr.ParakeetOfflineEnglishEngine
 import com.localfirst.realtimetranslator.asr.SherpaOnnxEnglishEngine
 import com.localfirst.realtimetranslator.audio.AndroidAudioCapture
 import com.localfirst.realtimetranslator.audio.AudioCapture
 import com.localfirst.realtimetranslator.model.AsrEngine
 import com.localfirst.realtimetranslator.model.AsrUpdate
+import com.localfirst.realtimetranslator.model.AsrModel
+import com.localfirst.realtimetranslator.model.AsrRuntimeStats
 import com.localfirst.realtimetranslator.model.CaptureEvent
 import com.localfirst.realtimetranslator.model.CaptureStatus
 import com.localfirst.realtimetranslator.model.SessionRequest
@@ -25,6 +29,8 @@ class AndroidSessionResources(
     private val eventSink: (CaptureEvent) -> Unit,
     private val statusSink: (CaptureStatus) -> Unit,
     private val englishSink: (AsrUpdate) -> Unit,
+    private val asrModel: AsrModel = AsrModel.ZIPFORMER,
+    private val asrStatsSink: (AsrRuntimeStats) -> Unit = {},
 ) : SessionResources {
     private var capture: AudioCapture? = null
     private var engine: AsrEngine? = null
@@ -37,10 +43,23 @@ class AndroidSessionResources(
     override suspend fun open(request: SessionRequest) {
         check(foregroundReady) { "Capture requires a foreground service" }
         check(capture == null && engine == null)
-        check(EnglishModelInstaller.isReady(context)) { "English ASR model is not installed" }
         val nextEngine = withContext(Dispatchers.IO) {
-            SherpaOnnxEnglishEngine(request.identity, EnglishModelInstaller.directory(context),
-                SystemClock::elapsedRealtime, englishSink)
+            when (asrModel) {
+                AsrModel.ZIPFORMER -> {
+                    check(EnglishModelInstaller.isReady(context)) { "Zipformer 模型尚未安装" }
+                    SherpaOnnxEnglishEngine(request.identity,
+                        EnglishModelInstaller.directory(context),
+                        SystemClock::elapsedRealtime, englishSink)
+                }
+                AsrModel.PARAKEET -> {
+                    check(ParakeetModelInstaller.isReady(context)) { "Parakeet 模型尚未安装" }
+                    ParakeetOfflineEnglishEngine(request.identity,
+                        ParakeetModelInstaller.directory(context),
+                        SystemClock::elapsedRealtime, englishSink, asrStatsSink,
+                        onFailure = { eventSink(CaptureEvent.ReadFailure(
+                            request.identity.sessionId, request.identity.audioEpoch)) })
+                }
+            }
         }
         engine = nextEngine
         val next = AndroidAudioCapture(

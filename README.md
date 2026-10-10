@@ -2,6 +2,14 @@
 
 An Android 10+ local-first English-to-Chinese live subtitle project.
 
+## R3.4: high-accuracy offline Parakeet experiment
+
+Branch: `feat/r3-4-parakeet-int8-asr`. The app now lets the user choose between **Zipformer (streaming)** and **Parakeet TDT 0.6B v3 INT8 (non-streaming)** per capture session, with separate private model imports. The original R2 audio capture, notification Stop action, R3.1 system overlay and R3.3 diagnostics are preserved.
+
+Parakeet consumes overlapping **3.2s / 0.64s** PCM windows on a background decode worker with a **bounded 3-window queue**. The app diagnostics expose decoded/dropped windows and most recent decoder time. No speech is uploaded or saved to files. Parakeet needs a large local user-supplied model and may be slower than real-time depending on the phone; no Android phone test is claimed yet. **This is a fixed-window accuracy baseline, not final VAD/word-timestamp segmentation.**
+
+[Download / model import / Xiaomi 13 acceptance instructions](docs/verification/r3-4-parakeet-acceptance.md).
+
 ## R3.3 A+B: ASR visibility and ordered caption queue
 
 Branch: `feat/r3-3-diagnostics-caption-queue`, built on R3.2 without altering the audio source, native sherpa model, permission flow, or foreground notification actions.

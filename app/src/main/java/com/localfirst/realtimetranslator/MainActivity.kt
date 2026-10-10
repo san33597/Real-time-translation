@@ -23,7 +23,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.localfirst.realtimetranslator.asr.EnglishModelInstaller
+import com.localfirst.realtimetranslator.asr.ParakeetModelInstaller
 import com.localfirst.realtimetranslator.model.AudioSource
+import com.localfirst.realtimetranslator.model.AsrModel
 import com.localfirst.realtimetranslator.model.ProjectionDecision
 import com.localfirst.realtimetranslator.model.SessionIdentity
 import com.localfirst.realtimetranslator.model.SessionState
@@ -39,6 +41,9 @@ class MainActivity : ComponentActivity() {
     private var pendingId = ""
     private var message by mutableStateOf<String?>(null)
     private var modelReady by mutableStateOf(false)
+    private var zipformerReady by mutableStateOf(false)
+    private var parakeetReady by mutableStateOf(false)
+    private var selectedAsr by mutableStateOf(AsrModel.ZIPFORMER)
     private var installingModel by mutableStateOf(false)
     private var overlayAllowed by mutableStateOf(false)
     private var requestedOverlayGrant = false
@@ -66,10 +71,37 @@ class MainActivity : ComponentActivity() {
                     withContext(Dispatchers.IO) {
                         EnglishModelInstaller.install(this@MainActivity, uri)
                     }
-                    modelReady = EnglishModelInstaller.isReady(this@MainActivity)
+                    zipformerReady = EnglishModelInstaller.isReady(this@MainActivity)
+                    modelReady = if (selectedAsr == AsrModel.ZIPFORMER) zipformerReady else parakeetReady
                     message = "英文模型安装完成，可开始 R3 识别。"
                 } catch (e: Exception) {
                     message = "模型导入失败：" + (e.message ?: "请检查模型文件")
+                } finally {
+                    installingModel = false
+                }
+            }
+        }
+    }
+
+    private val parakeetFolder = registerForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null && !installingModel) {
+            installingModel = true
+            message = "正在导入 Parakeet 模型（约 640 MiB），请等待文件复制完成…"
+            lifecycleScope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        ParakeetModelInstaller.install(this@MainActivity, uri)
+                    }
+                    parakeetReady = ParakeetModelInstaller.isReady(this@MainActivity)
+                    selectedAsr = AsrModel.PARAKEET
+                    modelReady = parakeetReady
+                    message = "Parakeet 模型已导入，已切换为 Parakeet，启动时将校验原生加载。"
+                } catch (e: Exception) {
+                    parakeetReady = ParakeetModelInstaller.isReady(this@MainActivity)
+                    modelReady = if (selectedAsr == AsrModel.PARAKEET) parakeetReady else zipformerReady
+                    message = "Parakeet 导入失败：" + (e.message ?: "请核对模型四个文件")
                 } finally {
                     installingModel = false
                 }
@@ -108,16 +140,28 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        modelReady = EnglishModelInstaller.isReady(this)
+        zipformerReady = EnglishModelInstaller.isReady(this)
+        parakeetReady = ParakeetModelInstaller.isReady(this)
+        modelReady = zipformerReady
         overlayAllowed = Settings.canDrawOverlays(this)
         setContent {
             val session by SessionBus.state.collectAsState()
             val capture by SessionBus.captureStatus.collectAsState()
             val english by SessionBus.englishSubtitles.collectAsState()
             val overlayEnabled by SessionBus.overlayEnabled.collectAsState()
+            val asrStats by SessionBus.asrStats.collectAsState()
             RealtimeTranslatorApp(
                 state = session,
                 captureStatus = capture,
+                asrStats = asrStats,
+                asrModel = selectedAsr,
+                zipformerReady = zipformerReady,
+                parakeetReady = parakeetReady,
+                onChooseAsr = { next ->
+                    selectedAsr = next
+                    modelReady = if (next == AsrModel.ZIPFORMER) zipformerReady else parakeetReady
+                },
+                onImportParakeet = { parakeetFolder.launch(null) },
                 englishSubtitles = english,
                 modelReady = modelReady,
                 installingModel = installingModel,
@@ -210,7 +254,8 @@ class MainActivity : ComponentActivity() {
 
     private fun startServiceForSource(intent: Intent) {
         try {
-            ContextCompat.startForegroundService(this, intent)
+            ContextCompat.startForegroundService(this,
+                intent.putExtra(RealtimeTranslationService.EXTRA_ASR_MODEL, selectedAsr.wireId))
         } catch (_: Exception) {
             message = "前台服务无法启动，请检查系统权限后重试。"
         }

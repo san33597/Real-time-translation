@@ -1,6 +1,7 @@
 package com.localfirst.realtimetranslator.service
 
 import com.localfirst.realtimetranslator.model.AsrUpdate
+import com.localfirst.realtimetranslator.model.AsrRuntimeStats
 import com.localfirst.realtimetranslator.model.CaptureStatus
 import com.localfirst.realtimetranslator.model.EnglishSubtitleCoordinator
 import com.localfirst.realtimetranslator.model.EnglishSubtitleState
@@ -19,6 +20,8 @@ object SessionBus {
     val state: StateFlow<SessionState> = internalState.asStateFlow()
     private val internalCapture = MutableStateFlow<CaptureStatus?>(null)
     val captureStatus: StateFlow<CaptureStatus?> = internalCapture.asStateFlow()
+    private val internalAsrStats = MutableStateFlow<AsrRuntimeStats?>(null)
+    val asrStats: StateFlow<AsrRuntimeStats?> = internalAsrStats.asStateFlow()
     private val coordinator = EnglishSubtitleCoordinator()
     private val internalEnglish = MutableStateFlow(EnglishSubtitleState())
     val englishSubtitles: StateFlow<EnglishSubtitleState> = internalEnglish.asStateFlow()
@@ -34,12 +37,14 @@ object SessionBus {
     internal fun dispatch(event: SessionEvent) {
         if (event is SessionEvent.StartRequested) {
             internalCapture.value = null
+            internalAsrStats.value = null
             coordinator.begin(event.request.identity.sessionId, event.request.identity.audioEpoch)
             internalEnglish.value = coordinator.state
         }
         internalState.update { reduce(it, event) }
         if (internalState.value is SessionState.Idle) {
             internalCapture.value = null
+            internalAsrStats.value = null
             coordinator.clear()
             internalEnglish.value = coordinator.state
         }
@@ -48,6 +53,12 @@ object SessionBus {
     internal fun updateCapture(status: CaptureStatus) {
         val active = internalState.value.requestOrNull()
         if (active?.identity?.sessionId == status.sessionId) internalCapture.value = status
+    }
+
+    internal fun updateAsrStats(stats: AsrRuntimeStats) {
+        val active = internalState.value.requestOrNull()
+        if (active?.identity?.sessionId == stats.sessionId &&
+            active.identity.audioEpoch == stats.audioEpoch) internalAsrStats.value = stats
     }
 
     internal fun updateEnglish(update: AsrUpdate) {
@@ -76,6 +87,7 @@ object SessionBus {
                 SessionState.Idle(com.localfirst.realtimetranslator.model.Notice.SESSION_INTERRUPTED)
         }
         internalCapture.value = null
+        internalAsrStats.value = null
         coordinator.clear()
         internalEnglish.value = coordinator.state
     }

@@ -11,6 +11,7 @@ android {
 }
 dependencies {
     api(project(":core-model"))
+    implementation(libs.kotlinx.coroutines.core)
     implementation("com.k2fsa:sherpa-onnx:1.13.8")
     implementation("androidx.documentfile:documentfile:1.1.0")
     testImplementation(libs.junit)

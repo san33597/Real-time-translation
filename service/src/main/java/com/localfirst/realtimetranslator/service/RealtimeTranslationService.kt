@@ -13,7 +13,9 @@ import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.localfirst.realtimetranslator.asr.EnglishModelInstaller
+import com.localfirst.realtimetranslator.asr.ParakeetModelInstaller
 import com.localfirst.realtimetranslator.model.AudioSource
+import com.localfirst.realtimetranslator.model.AsrModel
 import com.localfirst.realtimetranslator.model.CaptureEvent
 import com.localfirst.realtimetranslator.model.SessionEvent
 import com.localfirst.realtimetranslator.model.SessionIdentity
@@ -88,8 +90,13 @@ class RealtimeTranslationService : Service() {
             return
         }
         val request = SessionRequest(SessionIdentity(id), source)
+        val asrModel = AsrModel.fromWire(intent.getStringExtra(EXTRA_ASR_MODEL))
         SessionBus.dispatch(SessionEvent.StartRequested(request))
-        if (!EnglishModelInstaller.isReady(this)) {
+        val modelReady = when (asrModel) {
+            AsrModel.ZIPFORMER -> EnglishModelInstaller.isReady(this)
+            AsrModel.PARAKEET -> ParakeetModelInstaller.isReady(this)
+        }
+        if (!modelReady) {
             SessionBus.dispatch(SessionEvent.ModelsMissing(id))
             SessionBus.dispatch(SessionEvent.StopCompleted(id))
             stopSelf()
@@ -118,6 +125,8 @@ class RealtimeTranslationService : Service() {
             eventSink = { event -> scope.launch { onCaptureEvent(event) } },
             statusSink = { status -> scope.launch { SessionBus.updateCapture(status) } },
             englishSink = { update -> scope.launch { SessionBus.updateEnglish(update) } },
+            asrModel = asrModel,
+            asrStatsSink = { stats -> scope.launch { SessionBus.updateAsrStats(stats) } },
         )
         resources.onForegroundStarted()
         captureResources = resources
@@ -239,6 +248,7 @@ class RealtimeTranslationService : Service() {
         const val ACTION_START_MICROPHONE = "com.localfirst.realtimetranslator.START_MICROPHONE"
         const val ACTION_STOP = "com.localfirst.realtimetranslator.STOP"
         const val EXTRA_SESSION_ID = "session_id"
+        const val EXTRA_ASR_MODEL = "asr_model"
         const val EXTRA_RESULT_CODE = "projection_result_code"
         const val EXTRA_PROJECTION_DATA = "projection_data"
         private const val CHANNEL_ID = "audio_capture_session"
