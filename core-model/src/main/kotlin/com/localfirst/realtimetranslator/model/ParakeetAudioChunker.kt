@@ -24,8 +24,18 @@ class ParakeetAudioChunker(
     private val buffer = ShortArray(length)
     private var count = 0
     private var seq = 0L
+    // Sample position is scoped to an uninterrupted PCM segment. A gap increments
+    // the segment id, so two different playback/capture segments never align.
+    private var segmentId = 0L
+    private var totalSegmentSamples = 0L
 
-    data class Window(val index: Long, val samples: FloatArray)
+    data class Window(
+        val index: Long,
+        val samples: FloatArray,
+        val segmentId: Long = 0L,
+        val startSample: Long = 0L,
+        val endSample: Long = 0L,
+    )
 
     fun append(frame: ShortArray, ready: (Window) -> Unit) {
         var offset = 0
@@ -34,8 +44,9 @@ class ParakeetAudioChunker(
             System.arraycopy(frame, offset, buffer, count, amount)
             count += amount
             offset += amount
+            totalSegmentSamples += amount.toLong()
             if (count == length) {
-                ready(Window(seq++, toFloatArray(count)))
+                ready(makeWindow(count))
                 if (overlap > 0) System.arraycopy(buffer, length - overlap, buffer, 0, overlap)
                 count = overlap
             }
@@ -44,7 +55,7 @@ class ParakeetAudioChunker(
 
     /** Flush the final meaningful voice fragment only when stopping naturally. */
     fun finish(ready: (Window) -> Unit) {
-        if (count >= minimumTail) ready(Window(seq++, toFloatArray(count)))
+        if (count >= minimumTail) ready(makeWindow(count))
         reset()
     }
 
@@ -52,7 +63,17 @@ class ParakeetAudioChunker(
     fun reset() {
         buffer.fill(0)
         count = 0
+        totalSegmentSamples = 0L
+        segmentId++
     }
+
+    private fun makeWindow(size: Int): Window = Window(
+        index = seq++,
+        samples = toFloatArray(size),
+        segmentId = segmentId,
+        startSample = totalSegmentSamples - size,
+        endSample = totalSegmentSamples,
+    )
 
     private fun toFloatArray(size: Int): FloatArray =
         FloatArray(size) { i -> buffer[i] / 32768f }
