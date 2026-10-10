@@ -4,6 +4,24 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class OverlayCaptionTextTest {
+    @Test fun provisionalOverlayUsesOwnClockAndKeepsLastFinalAboveIt() {
+        val state = EnglishSubtitleState(
+            sessionId = "s",
+            displayCaption = "OLD CONFIRMED",
+            previousCaption = "OLDER",
+            captionUpdatedAtMs = 100L,
+            previewCaption = "EARLY WORDS",
+            previewUpdatedAtMs = 3400L,
+        )
+        assertEquals("EARLY WORDS", OverlayCaptionText.latest(state))
+        assertEquals("OLD CONFIRMED" to "EARLY WORDS",
+            OverlayCaptionText.rows(state, twoLines = true))
+        assertTrue(OverlayCaptionText.isFresh(state, 3401L))
+        assertFalse(OverlayCaptionText.isFresh(state, 6801L))
+        assertEquals("" to "EARLY WORDS",
+            OverlayCaptionText.rows(state, twoLines = false))
+    }
+
     @Test fun usesLivePartialBeforePreviousFinal() {
         val state = EnglishSubtitleState(
             committed = listOf(EnglishSubtitle(0, "previously spoken")),

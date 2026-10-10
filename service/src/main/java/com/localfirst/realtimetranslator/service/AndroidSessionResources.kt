@@ -8,6 +8,7 @@ import com.localfirst.realtimetranslator.asr.EnglishModelInstaller
 import com.localfirst.realtimetranslator.asr.ParakeetModelInstaller
 import com.localfirst.realtimetranslator.asr.ParakeetOfflineEnglishEngine
 import com.localfirst.realtimetranslator.asr.ParakeetWindowDiagnostic
+import com.localfirst.realtimetranslator.asr.ParakeetProbeDiagnostic
 import com.localfirst.realtimetranslator.asr.SherpaOnnxEnglishEngine
 import com.localfirst.realtimetranslator.audio.AndroidAudioCapture
 import com.localfirst.realtimetranslator.audio.AudioCapture
@@ -17,6 +18,7 @@ import com.localfirst.realtimetranslator.model.AsrModel
 import com.localfirst.realtimetranslator.model.AsrRuntimeStats
 import com.localfirst.realtimetranslator.model.ParakeetWindowPreset
 import com.localfirst.realtimetranslator.model.ParakeetStitchMode
+import com.localfirst.realtimetranslator.model.ParakeetPreviewMode
 import com.localfirst.realtimetranslator.model.CaptureEvent
 import com.localfirst.realtimetranslator.model.CaptureStatus
 import com.localfirst.realtimetranslator.model.SessionRequest
@@ -38,6 +40,8 @@ class AndroidSessionResources(
     private val parakeetPreset: ParakeetWindowPreset = ParakeetWindowPreset.LEGACY,
     private val parakeetStitchMode: ParakeetStitchMode = ParakeetStitchMode.LEGACY,
     private val recordTokenTimings: Boolean = false,
+    private val parakeetPreviewMode: ParakeetPreviewMode = ParakeetPreviewMode.OFF,
+    private val asrProbeSink: (ParakeetProbeDiagnostic) -> Unit = {},
 ) : SessionResources {
     private var capture: AudioCapture? = null
     private var engine: AsrEngine? = null
@@ -68,7 +72,9 @@ class AndroidSessionResources(
                         preset = parakeetPreset,
                         onDecode = asrDecodeSink,
                         stitchMode = parakeetStitchMode,
-                        recordTokenTimings = recordTokenTimings)
+                        recordTokenTimings = recordTokenTimings,
+                        previewMode = parakeetPreviewMode,
+                        onProbe = asrProbeSink)
                 }
             }
         }

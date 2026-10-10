@@ -12,6 +12,7 @@ import com.localfirst.realtimetranslator.model.ParakeetOverlapStitcher
 import com.localfirst.realtimetranslator.model.ParakeetGuardedOverlapStitcher
 import com.localfirst.realtimetranslator.model.ParakeetStitchMode
 import com.localfirst.realtimetranslator.model.ParakeetWindowPreset
+import com.localfirst.realtimetranslator.model.ParakeetPreviewMode
 import com.localfirst.realtimetranslator.model.PcmFrame
 import com.localfirst.realtimetranslator.model.SessionIdentity
 import java.io.File
@@ -24,6 +25,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 
 /**
  * Offline, NOT streaming. A short PCM-window builder runs on the capture consumer;
@@ -61,6 +63,21 @@ data class ParakeetWindowDiagnostic(
     val tokenTimings: List<ParakeetTokenTiming>,
 )
 
+data class ParakeetProbeDiagnostic(
+    val index: Long,
+    val rawText: String,
+    val provisionalText: String,
+    val queueWaitMs: Long,
+    val decodeMs: Long,
+    val reason: String,
+    val segmentId: Long,
+    val windowStartSample: Long,
+    val windowEndSample: Long,
+)
+
+/** Same recognizer instance; normal 3.2s decodes always take priority. */
+private enum class DecodeKind { FINAL, PROBE }
+
 class ParakeetOfflineEnglishEngine(
     private val identity: SessionIdentity,
     modelDirectory: File,
@@ -72,6 +89,8 @@ class ParakeetOfflineEnglishEngine(
     private val preset: ParakeetWindowPreset = ParakeetWindowPreset.LEGACY,
     private val stitchMode: ParakeetStitchMode = ParakeetStitchMode.LEGACY,
     private val recordTokenTimings: Boolean = false,
+    private val previewMode: ParakeetPreviewMode = ParakeetPreviewMode.OFF,
+    private val onProbe: (ParakeetProbeDiagnostic) -> Unit = {},
 ) : AsrEngine {
     private data class PendingWindow(
         val window: ParakeetAudioChunker.Window,
@@ -81,6 +100,7 @@ class ParakeetOfflineEnglishEngine(
 
     private val model: OfflineRecognizer
     private val chunks = Channel<PendingWindow>(capacity = 3)
+    private val probes = Channel<PendingWindow>(capacity = 1)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val chunker = if (preset == ParakeetWindowPreset.LEGACY) {
         // Baseline uses the identical default chunker initialization as R3.5.
@@ -133,15 +153,80 @@ class ParakeetOfflineEnglishEngine(
         val guardedStitcher = ParakeetGuardedOverlapStitcher()
         var workerGeneration = generation
         var utterance = 0L
+        var lastFullRaw = ""
+        var lastFinalWindow = -1L
         try {
-            for (pending in chunks) {
+            while (true) {
+                val work = select<Pair<DecodeKind, PendingWindow>?> {
+                    // Biased select: when both are ready, the complete window wins.
+                    chunks.onReceiveCatching { it.getOrNull()?.let { item ->
+                        DecodeKind.FINAL to item
+                    } }
+                    probes.onReceiveCatching { it.getOrNull()?.let { item ->
+                        DecodeKind.PROBE to item
+                    } }
+                } ?: break
+                val (kind, pending) = work
                 val wave = pending.window.samples
                 try {
                     if (pending.generation != generation) continue
                     if (workerGeneration != pending.generation) {
                         legacyStitcher.reset()
                         guardedStitcher.reset()
+                        lastFullRaw = ""
+                        lastFinalWindow = -1L
                         workerGeneration = pending.generation
+                    }
+                    if (kind == DecodeKind.PROBE) {
+                        val queueWait = (nowMs() - pending.queuedAtMs).coerceAtLeast(0)
+                        if (previewMode == ParakeetPreviewMode.OFF ||
+                            pending.window.index <= lastFinalWindow ||
+                            queueWait > 800L) {
+                            onProbe(ParakeetProbeDiagnostic(
+                                pending.window.index, "", "", queueWait, 0L,
+                                "skipped-stale-or-busy",
+                                pending.window.segmentId,
+                                pending.window.startSample, pending.window.endSample))
+                            continue
+                        }
+                        val start = nowMs()
+                        try {
+                            val stream = model.createStream()
+                        val raw = try {
+                            stream.acceptWaveform(wave, 16000)
+                            model.decode(stream)
+                            model.getResult(stream).text.trim()
+                        } finally {
+                            stream.release()
+                        }
+                        val decodeMs = (nowMs() - start).coerceAtLeast(0)
+                        if (pending.generation != generation ||
+                            pending.window.index <= lastFinalWindow) continue
+                        // Never mutate the full-window stitcher with provisional text.
+                        val candidate = if (lastFullRaw.isBlank()) raw else
+                            ParakeetOverlapStitcher().apply { append(lastFullRaw) }.append(raw)
+                        val wordCount = candidate.split(Regex("\\s+"))
+                            .count(String::isNotBlank)
+                        val safe = candidate.takeIf { wordCount >= 2 }.orEmpty()
+                        onProbe(ParakeetProbeDiagnostic(
+                            pending.window.index, raw, safe, queueWait, decodeMs,
+                            if (safe.isNotBlank()) "provisional" else "short-or-overlap",
+                            pending.window.segmentId,
+                            pending.window.startSample, pending.window.endSample))
+                        if (safe.isNotBlank()) {
+                            onUpdate(AsrUpdate(identity.sessionId, identity.audioEpoch,
+                                pending.window.index, 0L, safe, false, nowMs()))
+                        }
+                        } catch (e: Exception) {
+                            // A failed speculative decode must not end system audio
+                            // capture or prevent the final 3.2s window decoding.
+                            onProbe(ParakeetProbeDiagnostic(
+                                pending.window.index, "", "",
+                                queueWait, (nowMs() - start).coerceAtLeast(0),
+                                "probe-exception", pending.window.segmentId,
+                                pending.window.startSample, pending.window.endSample))
+                        }
+                        continue
                     }
                     val begin = nowMs()
                     lastQueueWaitMs = (begin - pending.queuedAtMs).coerceAtLeast(0)
@@ -177,6 +262,8 @@ class ParakeetOfflineEnglishEngine(
                     val elapsed = (decodeFinishAtMs - begin).coerceAtLeast(0)
                     // A reset/gap during native decode invalidates that result.
                     if (pending.generation != generation) continue
+                    lastFullRaw = text
+                    lastFinalWindow = pending.window.index
                     lastDecodeMs = elapsed
                     lastWindowTurnaroundMs = (nowMs() - pending.queuedAtMs).coerceAtLeast(0)
                     decoded.incrementAndGet()
@@ -218,9 +305,14 @@ class ParakeetOfflineEnglishEngine(
                         tokenTimings = tokenTimings,
                     ))
                     if (text.isNotBlank() && merged.isBlank()) overlapOnlyResults.incrementAndGet()
-                    if (merged.isNotBlank()) {
+                    if (merged.isNotBlank() || previewMode == ParakeetPreviewMode.EARLY) {
+                        // In preview mode each window has a stable utterance id so
+                        // the final can replace/cancel its own early hypothesis.
+                        val id = if (previewMode == ParakeetPreviewMode.EARLY)
+                            pending.window.index else utterance++
                         onUpdate(AsrUpdate(identity.sessionId, identity.audioEpoch,
-                            utterance++, 0L, merged, true, nowMs()))
+                            id, if (previewMode == ParakeetPreviewMode.EARLY) 1L else 0L,
+                            merged, true, nowMs()))
                     }
                     publishStats()
                 } finally {
@@ -232,6 +324,10 @@ class ParakeetOfflineEnglishEngine(
         } finally {
             while (true) {
                 val next = chunks.tryReceive().getOrNull() ?: break
+                next.window.samples.fill(0f)
+            }
+            while (true) {
+                val next = probes.tryReceive().getOrNull() ?: break
                 next.window.samples.fill(0f)
             }
             model.release()
@@ -254,8 +350,20 @@ class ParakeetOfflineEnglishEngine(
         inputRmsPermille = (sqrt(squared / samples.size) * 1000.0 / 32768.0)
             .toInt().coerceIn(0, 1000)
         val count = inputFrames.incrementAndGet()
-        chunker.append(samples) { offer(it) }
+        if (previewMode == ParakeetPreviewMode.EARLY) {
+            chunker.appendWithPreview(samples, 1600,
+                previewReady = { offerProbe(it) },
+                ready = { offer(it) })
+        } else {
+            chunker.append(samples) { offer(it) }
+        }
         if (count % 25L == 0L) publishStats()
+    }
+
+    private fun offerProbe(window: ParakeetAudioChunker.Window) {
+        if (!probes.trySend(PendingWindow(window, generation, nowMs())).isSuccess) {
+            window.samples.fill(0f) // Best-effort probe must never pressure full decoder.
+        }
     }
 
     private fun offer(window: ParakeetAudioChunker.Window) {
@@ -301,6 +409,7 @@ class ParakeetOfflineEnglishEngine(
         finished = true
         chunker.finish { offer(it) }
         chunks.close()
+        probes.close()
     }
 
     override fun close() {
@@ -309,6 +418,7 @@ class ParakeetOfflineEnglishEngine(
         generation++ // invalidate any decode still in flight
         chunker.reset()
         chunks.cancel()
+        probes.cancel()
         worker.cancel() // JNI finishes before worker's finally releases model
         scope.cancel()
     }

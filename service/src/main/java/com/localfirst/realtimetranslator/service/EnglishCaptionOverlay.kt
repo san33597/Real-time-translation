@@ -94,11 +94,13 @@ internal class EnglishCaptionOverlay(private val context: Context) {
                 return // Overlay permission may be revoked during a capture.
             }
         }
+        val effectiveAtMs = if (frame.subtitles.previewCaption.isNotBlank())
+            frame.subtitles.previewUpdatedAtMs else frame.subtitles.captionUpdatedAtMs
         if (previous != displayedPrevious || current != displayedCurrent ||
-            frame.subtitles.captionUpdatedAtMs != lastTextUpdateMs) {
+            effectiveAtMs != lastTextUpdateMs) {
             displayedPrevious = previous
             displayedCurrent = current
-            lastTextUpdateMs = frame.subtitles.captionUpdatedAtMs
+            lastTextUpdateMs = effectiveAtMs
             previousView?.apply {
                 text = previous
                 visibility = if (previous.isBlank()) View.GONE else View.VISIBLE

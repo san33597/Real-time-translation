@@ -27,6 +27,7 @@ import com.localfirst.realtimetranslator.model.AudioSource
 import com.localfirst.realtimetranslator.model.AsrModel
 import com.localfirst.realtimetranslator.model.ParakeetWindowPreset
 import com.localfirst.realtimetranslator.model.ParakeetStitchMode
+import com.localfirst.realtimetranslator.model.ParakeetPreviewMode
 import com.localfirst.realtimetranslator.model.CaptionPacing
 import com.localfirst.realtimetranslator.model.AsrRuntimeStats
 import com.localfirst.realtimetranslator.model.CaptureStatus
@@ -44,6 +45,8 @@ fun RealtimeTranslatorApp(
     stitchMode: ParakeetStitchMode,
     onChooseStitchMode: (ParakeetStitchMode) -> Unit,
     captionPacing: CaptionPacing,
+    previewMode: ParakeetPreviewMode,
+    onChoosePreviewMode: (ParakeetPreviewMode) -> Unit,
     onChooseCaptionPacing: (CaptionPacing) -> Unit,
     onChooseParakeetPreset: (ParakeetWindowPreset) -> Unit,
     zipformerReady: Boolean,
@@ -77,7 +80,7 @@ fun RealtimeTranslatorApp(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("R3.10 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
+                Text("R3.11 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
                 Text("离线英语识别测试 · 不保存音频 · ASR 文字日志仅在主动开启后保存")
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
@@ -192,6 +195,26 @@ fun RealtimeTranslatorApp(
                         }
                     }
                 }
+                if (asrModel == AsrModel.PARAKEET) {
+                    Text("提前识别实验（R3.11）",
+                        style = MaterialTheme.typography.titleMedium)
+                    ParakeetPreviewMode.entries.forEach { option ->
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            RadioButton(
+                                selected = previewMode == option,
+                                onClick = { onChoosePreviewMode(option) },
+                                enabled = idle && !installingModel,
+                            )
+                            Text(option.label, modifier = Modifier.padding(top = 12.dp))
+                        }
+                    }
+                    Text(
+                        "实验模式尝试提前识别 1.6 秒音频，仅显示临时字幕；" +
+                            "3.2 秒正式结果仍完整识别并替换。可能增加 CPU 负载、" +
+                            "出现临时误识别或反而延迟正式字幕，默认关闭。",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 Text("字幕显示节奏", style = MaterialTheme.typography.titleMedium)
                 CaptionPacing.entries.forEach { pace ->
                     Row(modifier = Modifier.fillMaxWidth()) {
@@ -208,7 +231,7 @@ fun RealtimeTranslatorApp(
                         " 不修改 Parakeet 的 3.2 秒音频窗口，字幕可能滚动更快。",
                     style = MaterialTheme.typography.bodySmall,
                 )
-                Text("R3.10 本地诊断日志（含 token 时间戳）", style = MaterialTheme.typography.titleMedium)
+                Text("R3.11 本地诊断日志（含提前预览、时间戳）", style = MaterialTheme.typography.titleMedium)
                 Row(modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("保存本次 ASR 文字更新",
@@ -350,7 +373,7 @@ fun RealtimeTranslatorApp(
                 }
                 OutlinedButton(onClick = onStop, enabled = !idle) { Text("停止采集") }
                 Text(
-                    "R3.10 研究字幕显示延迟并采集 token 时间戳；保持原模型与识别窗口不变。",
+                    "R3.11 可选 1.6 秒临时字幕；3.2 秒正式窗口、模型和去重均保留。",
                     style = MaterialTheme.typography.bodySmall
                 )
             }

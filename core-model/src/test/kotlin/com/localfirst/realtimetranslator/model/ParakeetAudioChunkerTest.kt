@@ -4,6 +4,65 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ParakeetAudioChunkerTest {
+    @Test fun earlyProbeDoesNotChangeFullWindowPcmOrCadence() {
+        val baseline = ParakeetAudioChunker(sampleRate = 1000,
+            windowMs = 3200, overlapMs = 640, minimumTailMs = 260)
+        val experimental = ParakeetAudioChunker(sampleRate = 1000,
+            windowMs = 3200, overlapMs = 640, minimumTailMs = 260)
+        val fullA = mutableListOf<ParakeetAudioChunker.Window>()
+        val fullB = mutableListOf<ParakeetAudioChunker.Window>()
+        val probes = mutableListOf<ParakeetAudioChunker.Window>()
+        val pcm = ShortArray(9000) { (it % 7000 - 3500).toShort() }
+        var offset = 0
+        while (offset < pcm.size) {
+            val size = minOf(191 + offset % 317, pcm.size - offset)
+            val piece = pcm.copyOfRange(offset, offset + size)
+            baseline.append(piece) { fullA.add(it) }
+            experimental.appendWithPreview(piece, 1600,
+                previewReady = { probes.add(it) }, ready = { fullB.add(it) })
+            offset += size
+        }
+        assertEquals(fullA.size, fullB.size)
+        assertEquals(3, probes.size)
+        assertEquals(listOf(0L, 2560L, 5120L), probes.map { it.startSample })
+        assertTrue(probes.all { it.samples.size == 1600 })
+        fullA.indices.forEach { index ->
+            assertEquals(fullA[index].index, fullB[index].index)
+            assertEquals(fullA[index].startSample, fullB[index].startSample)
+            assertArrayEquals(fullA[index].samples, fullB[index].samples, 0f)
+            assertEquals(probes[index].index, fullB[index].index)
+            assertArrayEquals(probes[index].samples,
+                fullB[index].samples.copyOfRange(0, 1600), 0f)
+        }
+    }
+
+    @Test fun earlyProbesAreDiscardedAcrossPcmGapAndDoNotJoinAudioSegments() {
+        val chunker = ParakeetAudioChunker(sampleRate = 1000,
+            windowMs = 3200, overlapMs = 640, minimumTailMs = 260)
+        val probes = mutableListOf<ParakeetAudioChunker.Window>()
+        val finals = mutableListOf<ParakeetAudioChunker.Window>()
+        chunker.appendWithPreview(ShortArray(1700) { 111 }, previewReady = { probes.add(it) },
+            ready = { finals.add(it) })
+        assertEquals(1, probes.size)
+        chunker.reset()
+        chunker.appendWithPreview(ShortArray(3200) { 222 }, previewReady = { probes.add(it) },
+            ready = { finals.add(it) })
+        assertEquals(2, probes.size)
+        assertEquals(1L, probes[1].segmentId)
+        assertEquals(0L, probes[1].startSample)
+        assertEquals(0L, finals.single().startSample)
+        assertEquals(1L, finals.single().segmentId)
+        assertEquals(0, finals.single().index)
+        assertTrue(finals.single().samples.all { it > 0.006f })
+    }
+
+    @Test fun previewModeDefaultsOffAndRejectsUnknownWireValues() {
+        assertEquals(ParakeetPreviewMode.OFF, ParakeetPreviewMode.fromWire(null))
+        assertEquals(ParakeetPreviewMode.OFF, ParakeetPreviewMode.fromWire("bad"))
+        assertEquals(ParakeetPreviewMode.EARLY,
+            ParakeetPreviewMode.fromWire("early-1600-r311"))
+    }
+
     @Test fun finiteOverlappingWindowsKeepBoundarySamples() {
         val chunks = mutableListOf<ParakeetAudioChunker.Window>()
         val assembler = ParakeetAudioChunker(

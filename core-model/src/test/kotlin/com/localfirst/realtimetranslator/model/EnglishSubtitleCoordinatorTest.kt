@@ -8,6 +8,47 @@ class EnglishSubtitleCoordinatorTest {
         session: String = "s", epoch: Long = 0) =
         AsrUpdate(session, epoch, id, rev, words, final, ms)
 
+    @Test fun earlyProvisionalDisplaysImmediatelyWithoutCommittingToCaptionQueue() {
+        val c = EnglishSubtitleCoordinator()
+        c.setEarlyPreviewEnabled(true)
+        c.begin("s", 0)
+        assertTrue(c.accept(event(0, 0, "I HAVE FOUND", false, 1600)))
+        assertEquals("I HAVE FOUND", c.state.previewCaption)
+        assertEquals("I HAVE FOUND", OverlayCaptionText.latest(c.state))
+        assertEquals("", c.state.displayCaption)
+        assertEquals(0, c.state.diagnostics.queuedChunks)
+        assertTrue(c.accept(event(0, 1, "I FOUND IT", true, 3200)))
+        assertEquals("", c.state.previewCaption)
+        assertEquals("I FOUND IT", OverlayCaptionText.latest(c.state))
+        assertEquals("I FOUND IT", c.state.committed.single().text)
+        assertFalse(c.accept(event(0, 2, "OLD PREVIEW", false, 3500)))
+    }
+
+    @Test fun blankFullResultRetractsWrongProvisionalHypothesis() {
+        val c = EnglishSubtitleCoordinator()
+        c.setEarlyPreviewEnabled(true)
+        c.begin("s", 0)
+        assertTrue(c.accept(event(0, 0, "HALLUCINATED AUDIO", false, 1500)))
+        assertTrue(OverlayCaptionText.isFresh(c.state, 1510))
+        assertTrue(c.accept(event(0, 1, "", true, 3200)))
+        assertEquals("", c.state.previewCaption)
+        assertEquals("", OverlayCaptionText.latest(c.state))
+        assertEquals(0, c.state.diagnostics.queuedChunks)
+        assertTrue(c.accept(event(1, 0, "ACTUAL DIALOGUE", true, 4200)))
+        assertEquals("ACTUAL DIALOGUE", c.state.displayCaption)
+    }
+
+    @Test fun previewClearsOnAudioGapAndNeverBecomesHistory() {
+        val c = EnglishSubtitleCoordinator()
+        c.setEarlyPreviewEnabled(true)
+        c.begin("s", 0)
+        assertTrue(c.accept(event(0, 0, "TOO SOON", false, 1400)))
+        c.gap()
+        assertEquals("", c.state.previewCaption)
+        assertEquals("", OverlayCaptionText.latest(c.state))
+        assertTrue(c.state.committed.isEmpty())
+    }
+
     @Test fun finalsRemainWhilePartialChanges() {
         val c = EnglishSubtitleCoordinator()
         c.begin("s", 0)

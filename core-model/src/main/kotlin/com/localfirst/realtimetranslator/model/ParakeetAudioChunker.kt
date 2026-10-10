@@ -28,6 +28,7 @@ class ParakeetAudioChunker(
     // the segment id, so two different playback/capture segments never align.
     private var segmentId = 0L
     private var totalSegmentSamples = 0L
+    private var previewIssued = false
 
     data class Window(
         val index: Long,
@@ -38,17 +39,48 @@ class ParakeetAudioChunker(
     )
 
     fun append(frame: ShortArray, ready: (Window) -> Unit) {
+        appendInternal(frame, null, 0, ready)
+    }
+
+    /**
+     * Optional 1.6s probe before the full 3.2s window.
+     * There is no extra PCM capture, and the full-window boundaries are unchanged.
+     */
+    fun appendWithPreview(
+        frame: ShortArray,
+        previewMs: Int = 1600,
+        previewReady: (Window) -> Unit,
+        ready: (Window) -> Unit,
+    ) {
+        require(previewMs > overlapMs && previewMs < windowMs)
+        appendInternal(frame, previewReady, sampleRate * previewMs / 1000, ready)
+    }
+
+    private fun appendInternal(
+        frame: ShortArray,
+        previewReady: ((Window) -> Unit)?,
+        previewSamples: Int,
+        ready: (Window) -> Unit,
+    ) {
         var offset = 0
         while (offset < frame.size) {
-            val amount = minOf(length - count, frame.size - offset)
+            val nextBoundary = if (!previewIssued && previewReady != null)
+                previewSamples else length
+            val amount = minOf(length - count, frame.size - offset,
+                (nextBoundary - count).coerceAtLeast(0).takeIf { it > 0 } ?: (length - count))
             System.arraycopy(frame, offset, buffer, count, amount)
             count += amount
             offset += amount
             totalSegmentSamples += amount.toLong()
+            if (!previewIssued && previewReady != null && count >= previewSamples) {
+                previewIssued = true
+                previewReady(makePreview(count))
+            }
             if (count == length) {
                 ready(makeWindow(count))
                 if (overlap > 0) System.arraycopy(buffer, length - overlap, buffer, 0, overlap)
                 count = overlap
+                previewIssued = false
             }
         }
     }
@@ -63,9 +95,18 @@ class ParakeetAudioChunker(
     fun reset() {
         buffer.fill(0)
         count = 0
+        previewIssued = false
         totalSegmentSamples = 0L
         segmentId++
     }
+
+    private fun makePreview(size: Int): Window = Window(
+        index = seq,
+        samples = toFloatArray(size),
+        segmentId = segmentId,
+        startSample = totalSegmentSamples - size,
+        endSample = totalSegmentSamples,
+    )
 
     private fun makeWindow(size: Int): Window = Window(
         index = seq++,

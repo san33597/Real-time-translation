@@ -34,6 +34,10 @@ object SessionBus {
     val appVisible: StateFlow<Boolean> = activityVisibility.asStateFlow()
 
     /** Called by the service before StartRequested; does not modify ASR input/output. */
+    internal fun setEarlyPreviewEnabled(enabled: Boolean) {
+        coordinator.setEarlyPreviewEnabled(enabled)
+    }
+
     internal fun setCaptionPacing(mode: CaptionPacing) {
         coordinator.setCaptionPacing(mode)
     }

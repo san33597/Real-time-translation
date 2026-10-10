@@ -19,6 +19,7 @@ import com.localfirst.realtimetranslator.model.AudioSource
 import com.localfirst.realtimetranslator.model.AsrModel
 import com.localfirst.realtimetranslator.model.ParakeetWindowPreset
 import com.localfirst.realtimetranslator.model.ParakeetStitchMode
+import com.localfirst.realtimetranslator.model.ParakeetPreviewMode
 import com.localfirst.realtimetranslator.model.CaptionPacing
 import com.localfirst.realtimetranslator.model.OverlayCaptionText
 import com.localfirst.realtimetranslator.model.CaptureEvent
@@ -66,9 +67,10 @@ class RealtimeTranslationService : Service() {
             }.collect { frame ->
                 floatingCaptions.render(frame)
                 val c = frame.subtitles
-                if (c.captionUpdatedAtMs >= 0L) {
+                if (c.captionUpdatedAtMs >= 0L || c.previewCaption.isNotBlank()) {
                     val key = c.captionUpdatedAtMs.toString() + "|" +
-                        c.previousCaption + "|" + c.displayCaption
+                        c.previousCaption + "|" + c.displayCaption + "|" +
+                        c.previewUpdatedAtMs + "|" + c.previewCaption
                     if (key != lastLoggedCaptionKey) {
                         lastLoggedCaptionKey = key
                         val (renderPrevious, renderCurrent) =
@@ -76,6 +78,8 @@ class RealtimeTranslationService : Service() {
                         diagnosticLog?.record("caption_state", renderCurrent, mapOf(
                             "previous" to renderPrevious,
                             "coordinatorCurrent" to c.displayCaption,
+                            "provisionalText" to c.previewCaption,
+                            "provisionalAtMs" to c.previewUpdatedAtMs,
                             "coordinatorPrevious" to c.previousCaption,
                             "queueDepth" to c.diagnostics.queuedChunks,
                             "queueOverflows" to c.diagnostics.queueOverflows,
@@ -123,7 +127,11 @@ class RealtimeTranslationService : Service() {
         val stitchMode = ParakeetStitchMode.fromWire(intent.getStringExtra(EXTRA_PARAKEET_STITCH_MODE))
         val saveAsrLog = intent.getBooleanExtra(EXTRA_SAVE_ASR_LOG, false)
         val captionPacing = CaptionPacing.fromWire(intent.getStringExtra(EXTRA_CAPTION_PACING))
+        val previewMode = if (asrModel == AsrModel.PARAKEET)
+            ParakeetPreviewMode.fromWire(intent.getStringExtra(EXTRA_PARAKEET_PREVIEW_MODE))
+            else ParakeetPreviewMode.OFF
         SessionBus.setCaptionPacing(captionPacing)
+        SessionBus.setEarlyPreviewEnabled(previewMode == ParakeetPreviewMode.EARLY)
         SessionBus.dispatch(SessionEvent.StartRequested(request))
         val modelReady = when (asrModel) {
             AsrModel.ZIPFORMER -> EnglishModelInstaller.isReady(this)
@@ -158,6 +166,7 @@ class RealtimeTranslationService : Service() {
                 "preset" to parakeetPreset.wireId,
                 "stitchMode" to stitchMode.wireId,
                 "captionPacing" to captionPacing.wireId,
+                "previewMode" to previewMode.wireId,
                 "source" to source.name,
                 "windowMs" to parakeetPreset.windowMs,
                 "overlapMs" to parakeetPreset.overlapMs,
@@ -183,6 +192,19 @@ class RealtimeTranslationService : Service() {
             parakeetPreset = parakeetPreset,
             parakeetStitchMode = stitchMode,
             recordTokenTimings = saveAsrLog,
+            parakeetPreviewMode = previewMode,
+            asrProbeSink = { trace ->
+                diagnosticLog?.record("parakeet_probe", trace.rawText, mapOf(
+                    "index" to trace.index,
+                    "provisionalText" to trace.provisionalText,
+                    "reason" to trace.reason,
+                    "queueWaitMs" to trace.queueWaitMs,
+                    "decodeMs" to trace.decodeMs,
+                    "segmentId" to trace.segmentId,
+                    "windowStartSample" to trace.windowStartSample,
+                    "windowEndSample" to trace.windowEndSample,
+                ))
+            },
             asrStatsSink = { stats -> scope.launch { SessionBus.updateAsrStats(stats) } },
             asrDecodeSink = { trace ->
                 diagnosticLog?.record("parakeet_window", trace.rawText, mapOf(
@@ -343,6 +365,7 @@ class RealtimeTranslationService : Service() {
         const val EXTRA_PARAKEET_WINDOW = "parakeet_window_preset"
         const val EXTRA_PARAKEET_STITCH_MODE = "parakeet_stitch_mode"
         const val EXTRA_CAPTION_PACING = "caption_pacing"
+        const val EXTRA_PARAKEET_PREVIEW_MODE = "parakeet_preview_mode"
         const val EXTRA_SAVE_ASR_LOG = "save_asr_log"
         const val EXTRA_RESULT_CODE = "projection_result_code"
         const val EXTRA_PROJECTION_DATA = "projection_data"
