@@ -32,7 +32,7 @@ class AndroidSessionResources(
     private val englishSink: (AsrUpdate) -> Unit,
     private val asrModel: AsrModel = AsrModel.ZIPFORMER,
     private val asrStatsSink: (AsrRuntimeStats) -> Unit = {},
-    private val parakeetPreset: ParakeetWindowPreset = ParakeetWindowPreset.BALANCED,
+    private val parakeetPreset: ParakeetWindowPreset = ParakeetWindowPreset.LEGACY,
 ) : SessionResources {
     private var capture: AudioCapture? = null
     private var engine: AsrEngine? = null
