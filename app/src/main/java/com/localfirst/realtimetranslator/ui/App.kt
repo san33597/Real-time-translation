@@ -67,7 +67,7 @@ fun RealtimeTranslatorApp(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("R3.6.1 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
+                Text("R3.7 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
                 Text("离线英语识别测试 · 暂不翻译 · 不保存音频和识别内容")
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
@@ -150,6 +150,7 @@ fun RealtimeTranslatorApp(
                             asrStats?.let { stats ->
                                 Text(
                                     "窗口长度：${stats.windowMs}ms · 重叠：${stats.overlapMs}ms" +
+                                        " · 更新间隔：${stats.windowMs - stats.overlapMs}ms" +
                                         " · 解码周转：${stats.lastWindowTurnaroundMs}ms",
                                     style = MaterialTheme.typography.bodySmall
                                 )
@@ -178,7 +179,7 @@ fun RealtimeTranslatorApp(
                     Text("Parakeet v3 INT8", modifier = Modifier.padding(top = 12.dp))
                 }
                 if (asrModel == AsrModel.PARAKEET) {
-                    Text("Parakeet 识别窗口（默认 R3.5 基线）",
+                    Text("Parakeet 重叠间隔 A/B 测试（均为 3.2 秒窗口）",
                         style = MaterialTheme.typography.titleMedium)
                     ParakeetWindowPreset.entries.forEach { preset ->
                         Row(modifier = Modifier.fillMaxWidth()) {
@@ -190,7 +191,7 @@ fun RealtimeTranslatorApp(
                             Text(preset.label, modifier = Modifier.padding(top = 12.dp))
                         }
                     }
-                    Text("3.2 秒保留 R3.5 原识别与字幕调度；2.4 秒和 2.0 秒仅用于实验，可能漏词。",
+                    Text("默认 640ms 保持 R3.5 识别节奏；1280ms 增加窗口频率，可能更及时，也可能产生重复或漏词。",
                         style = MaterialTheme.typography.bodySmall)
                 }
                 Text("Zipformer：${if (zipformerReady) "已安装" else "未安装"}；" +
@@ -272,7 +273,7 @@ fun RealtimeTranslatorApp(
                 }
                 OutlinedButton(onClick = onStop, enabled = !idle) { Text("停止采集") }
                 Text(
-                    "R3.6.1 默认恢复 R3.5 的 3.2s 识别与字幕等待机制，短窗口需手动选择。",
+                    "R3.7 默认沿用 R3.5 识别模式；1280ms 重叠仅供单独测试。",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
