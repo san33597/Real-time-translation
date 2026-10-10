@@ -5,7 +5,7 @@ object OverlayCaptionText {
     /** Characters are an additional bound; the Android view itself is limited to two lines. */
     fun latest(state: EnglishSubtitleState, maxCharacters: Int = 64): String {
         require(maxCharacters >= 16)
-        val source = if (state.captionUpdatedAtMs >= 0L) {
+        val source = if (state.sessionId != null || state.captionUpdatedAtMs >= 0L) {
             // After an audio gap this is intentionally blank; never revive an older final.
             state.displayCaption.trim()
         } else {
