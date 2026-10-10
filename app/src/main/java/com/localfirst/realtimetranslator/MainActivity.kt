@@ -34,6 +34,7 @@ import com.localfirst.realtimetranslator.model.projectionDecision
 import com.localfirst.realtimetranslator.model.requestOrNull
 import com.localfirst.realtimetranslator.service.RealtimeTranslationService
 import com.localfirst.realtimetranslator.service.SessionBus
+import com.localfirst.realtimetranslator.service.AsrDiagnosticLog
 import com.localfirst.realtimetranslator.ui.RealtimeTranslatorApp
 
 /** R3: English live subtitles from the R2 capture service; model import is explicit. */
@@ -51,6 +52,30 @@ class MainActivity : ComponentActivity() {
     private var installingModel by mutableStateOf(false)
     private var overlayAllowed by mutableStateOf(false)
     private var requestedOverlayGrant = false
+    private var saveAsrLog by mutableStateOf(false)
+    private var pendingSaveAsrLog = false
+    private var exportSourceFile: java.io.File? = null
+
+    private val logExport = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/x-ndjson")
+    ) { uri ->
+        val source = exportSourceFile
+        exportSourceFile = null
+        if (uri != null && source != null) {
+            lifecycleScope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        contentResolver.openOutputStream(uri)?.use { output ->
+                            source.inputStream().use { input -> input.copyTo(output) }
+                        } ?: error("无法打开导出位置")
+                    }
+                    message = "ASR 日志已导出，可用于对比识别结果。"
+                } catch (e: Exception) {
+                    message = "日志导出失败：" + (e.message ?: "未知错误")
+                }
+            }
+        }
+    }
 
     private val overlayPermission = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -178,6 +203,10 @@ class MainActivity : ComponentActivity() {
                 overlayAllowed = overlayAllowed,
                 onToggleOverlay = ::toggleOverlay,
                 overlayTwoLines = overlayTwoLines,
+                saveAsrLog = saveAsrLog,
+                onToggleAsrLog = { saveAsrLog = it },
+                onExportAsrLog = ::exportLastAsrLog,
+                onClearAsrLogs = ::clearAsrLogs,
                 onToggleOverlayTwoLines = SessionBus::setOverlayTwoLines,
                 message = message,
                 onStart = ::beginCapture,
@@ -234,6 +263,7 @@ class MainActivity : ComponentActivity() {
         pendingSource = source
         pendingAsr = selectedAsr
         pendingParakeetPreset = selectedParakeetPreset
+        pendingSaveAsrLog = saveAsrLog
         pendingId = SessionIdentity.new().sessionId
         message = null
         if (Build.VERSION.SDK_INT >= 33 &&
@@ -269,10 +299,34 @@ class MainActivity : ComponentActivity() {
             ContextCompat.startForegroundService(this,
                 intent.putExtra(RealtimeTranslationService.EXTRA_ASR_MODEL, pendingAsr.wireId)
                     .putExtra(RealtimeTranslationService.EXTRA_PARAKEET_WINDOW,
-                        pendingParakeetPreset.wireId))
+                        pendingParakeetPreset.wireId)
+                    .putExtra(RealtimeTranslationService.EXTRA_SAVE_ASR_LOG, pendingSaveAsrLog))
         } catch (_: Exception) {
             message = "前台服务无法启动，请检查系统权限后重试。"
         }
+    }
+
+    private fun exportLastAsrLog() {
+        if (SessionBus.state.value !is SessionState.Idle) {
+            message = "请先停止采集，等待日志写入完成后再导出。"
+            return
+        }
+        val latest = AsrDiagnosticLog.latest(this)
+        if (latest == null) {
+            message = "还没有本地 ASR 日志，请先开启保存开关并完成一次测试。"
+            return
+        }
+        exportSourceFile = latest
+        logExport.launch(latest.name)
+    }
+
+    private fun clearAsrLogs() {
+        if (SessionBus.state.value !is SessionState.Idle) {
+            message = "请先停止采集再清空日志。"
+            return
+        }
+        val count = AsrDiagnosticLog.clear(this)
+        message = "已删除 " + count + " 份本地 ASR 文字日志。"
     }
 
     private fun stopCapture() {
