@@ -32,6 +32,38 @@ class ParakeetAudioChunkerTest {
         assertTrue(chunks[0].samples.all { it > 0.01f })
     }
 
+    @Test fun tracksExactSampleOffsetsAcrossOverlappingWindows() {
+        val chunker = ParakeetAudioChunker(
+            sampleRate = 1000, windowMs = 1000, overlapMs = 200, minimumTailMs = 100)
+        val windows = mutableListOf<ParakeetAudioChunker.Window>()
+        chunker.append(ShortArray(1850) { 99 }) { windows.add(it) }
+        assertEquals(2, windows.size)
+        assertEquals(0L, windows[0].startSample)
+        assertEquals(1000L, windows[0].endSample)
+        assertEquals(800L, windows[1].startSample)
+        assertEquals(1800L, windows[1].endSample)
+        assertEquals(0L, windows[1].segmentId)
+        chunker.finish { windows.add(it) }
+        assertEquals(3, windows.size)
+        assertEquals(1600L, windows[2].startSample)
+        assertEquals(1850L, windows[2].endSample)
+    }
+
+    @Test fun sampleTimelineRestartsAfterGapWithoutJoiningTwoSegments() {
+        val chunker = ParakeetAudioChunker(
+            sampleRate = 1000, windowMs = 1000, overlapMs = 200, minimumTailMs = 100)
+        val windows = mutableListOf<ParakeetAudioChunker.Window>()
+        chunker.append(ShortArray(1000)) { windows.add(it) }
+        chunker.append(ShortArray(310)) { windows.add(it) }
+        chunker.reset()
+        chunker.append(ShortArray(1000)) { windows.add(it) }
+        assertEquals(2, windows.size)
+        assertEquals(1L, windows.last().segmentId)
+        assertEquals(0L, windows.last().startSample)
+        assertEquals(1000L, windows.last().endSample)
+        assertEquals(1L, windows.last().index)
+    }
+
     @Test fun overlapDedupUsesExactOrderedSuffixAndPrefix() {
         val s = ParakeetOverlapStitcher()
         assertEquals("HERE YOU ARE THANK YOU", s.append("HERE YOU ARE THANK YOU"))
