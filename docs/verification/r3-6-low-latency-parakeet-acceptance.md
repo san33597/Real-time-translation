@@ -1,31 +1,28 @@
-# R3.6 — Low-latency Parakeet subtitle trial
+# R3.6.1 — R3.5 baseline recovery before low-latency experiments
 
-## Intent
-Keep the offline Parakeet TDT v3 INT8 + Zipformer architecture and the R3.5 two-row overlay. Reduce avoidable subtitle latency without changing raw transcripts or adding cloud/translation, VAD, or enhancement models.
+## Why this revision exists
+User tests found that R3.6 was worse than R3.5 even when selecting the same 3.2s window:
+both raw ASR Final results and floating subtitles were missing lines in *The Last of Us*. 
+That is a regression observation, **not** proof of a specific cause in the model.
+R3.6 simultaneously changed recognition window scheduling and caption hold times, preventing a clean A/B comparison.
 
-## Changes
-- Three **session-frozen** Parakeet decoding profiles, using the same imported model:
-  - **2.4s default** with 480ms overlap (1.92s hop).
-  - **2.0s experimental** with 400ms overlap (1.60s hop).
-  - **3.2s R3.5 comparison** with 640ms overlap (2.56s hop).
-- In-app selector is available while capture is stopped. Selected profile travels to the foreground service and is frozen when capture is requested. Invalid/missing wire mode safely selects 2.4s.
-- Display scheduler ordinary hold 750ms → 260ms; 2+ pending chunks 180ms; 4+ pending chunks 120ms. Previous line remains in the overlay, and all queued words retain their order. No transcript rewriter, forced per-line 2-second hold, or silent take-last queue skipping.
-- RAM-only metadata diagnostics: window length/overlap, decoder window turnaround time (audio window queued to decode completion), recognition queue wait, caption queue display wait. These are **component delays, not a measured source-voice-to-screen end-to-end latency**.
-- Model files remain private on-device and are not re-imported between modes. Audio PCM and ASR transcripts are not saved or transmitted. R2 and R3.5 branches untouched.
+## Safety-first recovery
+- **3.2s R3.5 mode is the default again** (640ms overlap, 2560ms hop).
+- The default Parakeet audio chunker is constructed with the **same no-argument constructor** as R3.5.
+- The complete `OrderedCaptionQueue.kt` and `EnglishSubtitle.kt` implementations and caption queue tests were restored **byte-for-byte** from the R3.5 branch: 750ms ordinary hold, 320ms at 2–3 pending fragments, 180ms at 4+.
+- 2.4s (480ms overlap) and 2.0s (400ms overlap) are strictly *manual experiments* only, never the default.
+- Diagnostic-only window turnaround telemetry is retained and raw recognized text remains independent of display.
+- App version 0.3.6.1 (versionCode 11). Existing models stay installed when the APK is installed over R3.5/R3.6.
 
-## Local/CI verification
-The existing Android CI runs JVM tests, Android unit tests, Android Lint, and assembles debug APK. The model remains a 640 MiB externally imported artifact, so CI does not prove speech accuracy.
+## Tests and comparison plan
+1. In Android CI run JVM and Android module unit tests, Lint and Debug APK assembly.
+2. A PCM regression test feeds a deterministic 120,000-sample sequence into the R3.5 default chunker and explicit 3200/640 chunker and asserts that every output window is exactly identical. This validates **window construction**, not neural-model accuracy.
+3. Install 0.3.6.1 without uninstalling the old version; ensure 3.2s selected as the default.
+4. Play **the identical *The Last of Us* opening scene** for 3–5min under identical volume, audio source and capture permissions. Repeat on **actual R3.5 APK** if comparison is inconclusive.
+5. Compare raw Final count and exact phrases, overlay misses, dropped PCM frames, Parakeet dropped windows, `emptyResults` and `overlapOnlyResults`. Take screenshots of each diagnostics panel after the same scene; the fact that subtitles seem faster alone is not evidence of ASR accuracy.
+6. **Do not test 2.4s/2.0s for acceptance until the recovered 3.2s profile matches R3.5.**
+7. If recovered 3.2s still produces fewer raw Final outputs under the same conditions, investigate PCM capture discontinuities, model load/state, source restrictions and per-window text/timing. Do **not** presume caption queue timing caused the ASR misses.
+8. Once baseline parity is verified, compare one change at a time on the same scene. Never combine shortened windows with altered caption hold times.
 
-## Xiaomi 13 acceptance (required)
-1. Install 0.3.6 over 0.3.5; **do not uninstall** (keeps imported ASR models). Check Parakeet v3 remains installed and two-row caption mode retained when enabled in the same process.
-2. Use SYSTEM audio, select Parakeet and start 2.4s default mode; check diagnostics **window length 2400ms, overlap 480ms**, no dropped PCM frames/window backlog/recognizer exceptions.
-3. Play a **Friends** episode with sustained conversational English: inspect caption readability and compare raw recognized words to speech. Ensure no regression from 3.2s.
-4. Play the exact **The Last of Us** opening dialogue continuously for 3–5 minutes. Without pausing, note subjective delay and whether recognized words reach the overlay in spoken order. Check `lastCaptionWaitMs`, `lastWindowTurnaroundMs`, queue and overflow.
-5. Stop recording, switch to **3.2s R3.5 comparison** (do not change source/video volume/scene), replay same segment. Capture a screenshot with the selected window size, decode counts, empty windows, and caption wait. 2.4s should improve latency **without unacceptable missing words**.
-6. Only if 2.4s remains noticeably late, stop and try **2.0s experimental** on the identical scene. This preset is not claimed to have equivalent accuracy.
-7. For **Love, Death & Robots** music + low voice scenes, compare empty recognizer windows, unchanged source PCM RMS, and raw text for the same scene at 2.4s and 3.2s. **Do not interpret music-only blanks as speech recognition failures.** Shorter windows can make music-masked whispers worse.
-8. Run 10–15 minutes; ensure decoded+queued counters advance, capture and decoder dropped windows stay zero, no growing backlog, and overlay closes on Stop or foreground app return.
-9. Verify notifications, permission revocation, model import retention, single-row switching, and Zipformer fallback.
-
-## Limits
-This is still a **windowed offline** recognizer; first full result requires an entire selected PCM window. A shorter window may lower latency but not solve missed soft speech under loud music. Compare real dialogue against audible audio, not just the subtitle file supplied by the TV service.
+## Limitations
+The offline Parakeet decoder still needs a full audio window. No VAD, model swap, speech enhancement, translation or transcript persistence is introduced. CI cannot validate TV speech quality.
