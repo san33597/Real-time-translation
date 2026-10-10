@@ -20,6 +20,16 @@ object OverlayCaptionText {
         else tail.trimStart()
     }
 
+    /** Two bounded display fragments in spoken order; raw ASR remains untouched. */
+    fun rows(state: EnglishSubtitleState, twoLines: Boolean): Pair<String, String> {
+        val newest = latest(state)
+        return if (twoLines && newest.isNotBlank()) {
+            state.previousCaption.trim() to newest
+        } else {
+            "" to newest
+        }
+    }
+
     /** Uses Android's monotonic elapsedRealtime clock, not wall-clock timestamps. */
     fun isFresh(state: EnglishSubtitleState, nowMs: Long, holdMs: Long = 3_300L): Boolean {
         require(holdMs >= 0L)
