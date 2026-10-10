@@ -128,6 +128,7 @@ class EnglishSubtitleCoordinator(
                 activeUtteranceId = update.utteranceId,
                 partial = if (canUpdatePartial) sanitized else state.partial,
                 displayCaption = scheduler.visibleText,
+                previousCaption = scheduler.previousText,
                 captionUpdatedAtMs = scheduler.visibleAtMs,
                 diagnostics = displayState,
             )
