@@ -112,7 +112,7 @@ class ParakeetAudioChunkerTest {
         val stitcher = ParakeetOverlapStitcher()
         assertEquals("SHE IS GOING DOWN", stitcher.append("SHE IS GOING DOWN"))
         assertEquals(0, stitcher.lastDuplicateWords)
-        assertEquals("DOWN AGAIN", stitcher.append("DOWN AGAIN"))
+        assertEquals("AGAIN", stitcher.append("DOWN AGAIN"))
         assertEquals(1, stitcher.lastDuplicateWords)
         assertEquals("", stitcher.append("DOWN AGAIN"))
         assertEquals(2, stitcher.lastDuplicateWords)
