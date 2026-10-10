@@ -36,7 +36,7 @@ class ParakeetOfflineEnglishEngine(
     private val onUpdate: (AsrUpdate) -> Unit,
     private val onStats: (AsrRuntimeStats) -> Unit,
     private val onFailure: (Throwable) -> Unit,
-    private val preset: ParakeetWindowPreset = ParakeetWindowPreset.BALANCED,
+    private val preset: ParakeetWindowPreset = ParakeetWindowPreset.LEGACY,
 ) : AsrEngine {
     private data class PendingWindow(
         val window: ParakeetAudioChunker.Window,
@@ -47,8 +47,12 @@ class ParakeetOfflineEnglishEngine(
     private val model: OfflineRecognizer
     private val chunks = Channel<PendingWindow>(capacity = 3)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val chunker = ParakeetAudioChunker(
-        windowMs = preset.windowMs, overlapMs = preset.overlapMs)
+    private val chunker = if (preset == ParakeetWindowPreset.LEGACY) {
+        // Baseline uses the identical default chunker initialization as R3.5.
+        ParakeetAudioChunker()
+    } else {
+        ParakeetAudioChunker(windowMs = preset.windowMs, overlapMs = preset.overlapMs)
+    }
     @Volatile private var generation = 0L
     private val decoded = AtomicLong()
     private val dropped = AtomicLong()
