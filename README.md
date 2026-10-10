@@ -2,6 +2,16 @@
 
 An Android 10+ local-first English-to-Chinese live subtitle project.
 
+## R3.3 A+B: ASR visibility and ordered caption queue
+
+Branch: `feat/r3-3-diagnostics-caption-queue`, built on R3.2 without altering the audio source, native sherpa model, permission flow, or foreground notification actions.
+
+The app now has a collapsible on-device **ASR 原文 vs 字幕** diagnostic panel showing the last raw partial/final, a small bounded trace, subtitle output, backlog and explicit overflow/revision counters. Nothing is uploaded or saved to disk; all traces clear on stop.
+
+The R3.2 tail-only caption projection has been removed. A new ordered scheduler queues words verified by consecutive partial hypotheses and flushes remaining words on final; it shows every queued fragment for a limited reading time rather than instantly jumping to the end. Caption playback progresses while ASR is silent. This does not recover English never recognized by the ASR model, and under extreme backlog the queue overflow counter makes any loss explicit.
+
+[R3.3 A+B acceptance and diagnostic guide](docs/verification/r3-3-diagnostics-caption-queue-acceptance.md).
+
 ## R3.2: short, automatically segmented English captions
 
 Branch: `feat/r3-2-caption-segmentation`. English capture, offline sherpa ASR, the R3.1 overlay switch and permissions remain unchanged.
