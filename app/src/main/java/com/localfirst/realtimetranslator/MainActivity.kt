@@ -149,6 +149,7 @@ class MainActivity : ComponentActivity() {
             val capture by SessionBus.captureStatus.collectAsState()
             val english by SessionBus.englishSubtitles.collectAsState()
             val overlayEnabled by SessionBus.overlayEnabled.collectAsState()
+            val overlayTwoLines by SessionBus.overlayTwoLines.collectAsState()
             val asrStats by SessionBus.asrStats.collectAsState()
             RealtimeTranslatorApp(
                 state = session,
@@ -169,6 +170,8 @@ class MainActivity : ComponentActivity() {
                 overlayEnabled = overlayEnabled && overlayAllowed,
                 overlayAllowed = overlayAllowed,
                 onToggleOverlay = ::toggleOverlay,
+                overlayTwoLines = overlayTwoLines,
+                onToggleOverlayTwoLines = SessionBus::setOverlayTwoLines,
                 message = message,
                 onStart = ::beginCapture,
                 onStop = ::stopCapture
