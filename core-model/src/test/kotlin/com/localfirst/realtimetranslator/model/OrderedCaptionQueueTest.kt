@@ -89,6 +89,34 @@ class OrderedCaptionQueueTest {
         assertTrue(queue.queueOverflows > 0)
     }
 
+    @Test fun previousFragmentScrollsUpAsNewFragmentAppears() {
+        val queue = OrderedCaptionQueue()
+        queue.ingest(event("FIRST", 0, true, 100, 0))
+        assertEquals("", queue.previousText)
+        queue.ingest(event("SECOND", 0, true, 200, 1))
+        assertFalse(queue.advance(500))
+        assertTrue(queue.advance(850))
+        assertEquals("FIRST", queue.previousText)
+        assertEquals("SECOND", queue.visibleText)
+        queue.ingest(event("THIRD", 0, true, 900, 2))
+        assertTrue(queue.advance(1600))
+        assertEquals("SECOND", queue.previousText)
+        assertEquals("THIRD", queue.visibleText)
+    }
+
+    @Test fun largeBacklogScrollsFasterWithoutDroppingOriginalChunks() {
+        val queue = OrderedCaptionQueue()
+        (0L..4L).forEach { i ->
+            queue.ingest(event("FRAGMENT$i", 0, true, 100 + i * 25, i))
+        }
+        assertEquals(4, queue.queueDepth)
+        assertTrue(queue.advance(285))
+        assertEquals("FRAGMENT0", queue.previousText)
+        assertEquals("FRAGMENT1", queue.visibleText)
+        assertTrue(queue.queueDepth > 0)
+        assertEquals(0, queue.queueOverflows)
+    }
+
     @Test fun audioGapEmptiesPendingAndCurrentWithoutKeepingOldWords() {
         val queue = OrderedCaptionQueue()
         queue.ingest(event("FIRST UTTERANCE", 0, true, 100, 0))
@@ -96,6 +124,7 @@ class OrderedCaptionQueueTest {
         queue.gap()
         assertEquals(0, queue.queueDepth)
         assertEquals("", queue.visibleText)
+        assertEquals("", queue.previousText)
         queue.ingest(event("AFTER GAP", 0, true, 400, 2))
         assertEquals("AFTER GAP", queue.visibleText)
     }
