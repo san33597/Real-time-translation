@@ -81,7 +81,7 @@ class OrderedCaptionQueue(
         if (confirmedPrefix < committedWords.size) revisedStablePrefixes++
 
         if (safeCount > committedWords.size) {
-            appendWords(currentWords.subList(committedWords.size, safeCount))
+            appendWords(currentWords.subList(committedWords.size, safeCount), update.elapsedRealtimeMs)
         }
         // Only the aligned shared prefix is considered newly verified.
         if (safeCount >= committedWords.size) {
@@ -107,30 +107,34 @@ class OrderedCaptionQueue(
         return true
     }
 
-    private fun appendWords(words: List<String>) {
+    private fun appendWords(words: List<String>, nowMs: Long) {
         if (words.isEmpty()) return
-        var builder = ""
-        var count = 0
-        fun flush() {
-            if (builder.isNotBlank()) {
-                if (pending.size >= maxQueuedChunks) {
-                    // There is no infinite-buffer/no-latency solution. Make
-                    // overload measurable instead of discarding it silently.
-                    queueOverflows++
-                } else pending.addLast(builder)
-                builder = ""
-                count = 0
-            }
-        }
         for (word in words) {
-            val candidate = if (builder.isEmpty()) word else "$builder $word"
-            if (builder.isNotEmpty() &&
-                (candidate.length > maxChunkCharacters || count >= maxChunkWords)) flush()
-            builder = if (builder.isEmpty()) word else "$builder $word"
-            count++
+            // Merge fresh words into an undisplayed chunk to avoid a queue of
+            // single-word captions when ASR confirms one word at a time.
+            val last = pending.lastOrNull()
+            if (last != null && canAppend(last, word)) {
+                pending.removeLast()
+                pending.addLast("$last $word")
+                continue
+            }
+            // First words may be shown promptly, without freezing the next
+            // few words into separate 950ms screens.
+            if (pending.isEmpty() && current.isNotBlank() && shownAtMs >= 0 &&
+                nowMs >= shownAtMs && nowMs - shownAtMs < 320 &&
+                canAppend(current, word)) {
+                current = "$current $word"
+                lastChangedAtMs = nowMs
+                continue
+            }
+            if (pending.size >= maxQueuedChunks) queueOverflows++
+            else pending.addLast(word)
         }
-        flush()
     }
+
+    private fun canAppend(existing: String, word: String): Boolean =
+        existing.length + 1 + word.length <= maxChunkCharacters &&
+            existing.split(' ').size < maxChunkWords
 
     private fun commonPrefix(a: List<String>, b: List<String>): Int {
         var count = 0
