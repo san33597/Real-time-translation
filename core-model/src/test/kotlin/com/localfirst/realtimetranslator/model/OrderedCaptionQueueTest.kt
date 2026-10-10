@@ -17,7 +17,7 @@ class OrderedCaptionQueueTest {
         queue.ingest(event("HERE YOU ARE THANK YOU", 2, true, 320))
         assertEquals("HERE YOU ARE", queue.visibleText)
         assertEquals(1, queue.queueDepth)
-        assertTrue(queue.advance(1080))
+        assertTrue(queue.advance(1180))
         assertEquals("THANK YOU", queue.visibleText)
         assertEquals(0, queue.queueOverflows)
     }
