@@ -114,7 +114,8 @@ internal class EnglishCaptionOverlay(private val context: Context) {
         setTextColor(color)
         textSize = 16f
         gravity = Gravity.CENTER
-        maxLines = 2
+        maxLines = 1
+        setAutoSizeTextTypeUniformWithConfiguration(12, 16, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
         ellipsize = TextUtils.TruncateAt.END
         setPadding(0, dp(3), 0, dp(3))
     }
