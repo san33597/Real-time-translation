@@ -9,6 +9,7 @@ import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.IBinder
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.localfirst.realtimetranslator.asr.EnglishModelInstaller
@@ -24,6 +25,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collect
 
@@ -40,6 +43,12 @@ class RealtimeTranslationService : Service() {
         val channel = NotificationChannel(CHANNEL_ID, "实时音频采集", NotificationManager.IMPORTANCE_LOW)
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         floatingCaptions = EnglishCaptionOverlay(this)
+        scope.launch {
+            while (isActive) {
+                delay(100L)
+                SessionBus.tickCaptions(SystemClock.elapsedRealtime())
+            }
+        }
         scope.launch {
             combine(SessionBus.state, SessionBus.englishSubtitles,
                 SessionBus.overlayEnabled, SessionBus.appVisible
