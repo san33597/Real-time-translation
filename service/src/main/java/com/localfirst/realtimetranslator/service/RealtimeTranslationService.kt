@@ -14,6 +14,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.localfirst.realtimetranslator.asr.EnglishModelInstaller
 import com.localfirst.realtimetranslator.asr.ParakeetModelInstaller
+import android.provider.Settings
 import com.localfirst.realtimetranslator.model.AudioSource
 import com.localfirst.realtimetranslator.model.AsrModel
 import com.localfirst.realtimetranslator.model.ParakeetWindowPreset
@@ -33,13 +34,15 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collect
 
-/** R3 performs on-device English ASR. Translation, cloud calls and disk transcripts are absent. */
+/** On-device English ASR. Diagnostic text is stored only on per-session user opt-in. */
 class RealtimeTranslationService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var session: TranslationSession? = null
     private var captureResources: AndroidSessionResources? = null
     private var stopping = false
     private lateinit var floatingCaptions: EnglishCaptionOverlay
+    private var diagnosticLog: AsrDiagnosticLog? = null
+    private var lastLoggedCaptionKey = ""
 
     override fun onCreate() {
         super.onCreate()
@@ -59,6 +62,23 @@ class RealtimeTranslationService : Service() {
                 OverlayFrame(state, subtitle, enabled, appVisible, twoLines)
             }.collect { frame ->
                 floatingCaptions.render(frame)
+                val c = frame.subtitles
+                if (c.captionUpdatedAtMs >= 0L) {
+                    val key = c.captionUpdatedAtMs.toString() + "|" +
+                        c.previousCaption + "|" + c.displayCaption
+                    if (key != lastLoggedCaptionKey) {
+                        lastLoggedCaptionKey = key
+                        diagnosticLog?.record("caption_state", c.displayCaption, mapOf(
+                            "previous" to c.previousCaption,
+                            "queueDepth" to c.diagnostics.queuedChunks,
+                            "queueOverflows" to c.diagnostics.queueOverflows,
+                            "overlayEnabled" to frame.enabled,
+                            "overlayEligible" to (frame.enabled && !frame.appVisible &&
+                                Settings.canDrawOverlays(this@RealtimeTranslationService) &&
+                                frame.state is SessionState.Running),
+                        ))
+                    }
+                }
             }
         }
     }
@@ -93,6 +113,7 @@ class RealtimeTranslationService : Service() {
         val request = SessionRequest(SessionIdentity(id), source)
         val asrModel = AsrModel.fromWire(intent.getStringExtra(EXTRA_ASR_MODEL))
         val parakeetPreset = ParakeetWindowPreset.fromWire(intent.getStringExtra(EXTRA_PARAKEET_WINDOW))
+        val saveAsrLog = intent.getBooleanExtra(EXTRA_SAVE_ASR_LOG, false)
         SessionBus.dispatch(SessionEvent.StartRequested(request))
         val modelReady = when (asrModel) {
             AsrModel.ZIPFORMER -> EnglishModelInstaller.isReady(this)
@@ -120,16 +141,44 @@ class RealtimeTranslationService : Service() {
             stopSelf()
             return
         }
+        if (saveAsrLog) {
+            diagnosticLog = AsrDiagnosticLog.start(this)
+            diagnosticLog?.record("session_start", metadata = mapOf(
+                "model" to asrModel.wireId,
+                "preset" to parakeetPreset.wireId,
+                "source" to source.name,
+                "windowMs" to parakeetPreset.windowMs,
+                "overlapMs" to parakeetPreset.overlapMs,
+            ))
+        }
+        lastLoggedCaptionKey = ""
         val resources = AndroidSessionResources(
             context = this,
             resultCode = resultCode,
             consent = consent,
             eventSink = { event -> scope.launch { onCaptureEvent(event) } },
             statusSink = { status -> scope.launch { SessionBus.updateCapture(status) } },
-            englishSink = { update -> scope.launch { SessionBus.updateEnglish(update) } },
+            englishSink = { update ->
+                diagnosticLog?.record("asr_update", update.text, mapOf(
+                    "utteranceId" to update.utteranceId,
+                    "revision" to update.revision,
+                    "isFinal" to update.isFinal,
+                    "asrElapsedRealtimeMs" to update.elapsedRealtimeMs,
+                ))
+                scope.launch { SessionBus.updateEnglish(update) }
+            },
             asrModel = asrModel,
             parakeetPreset = parakeetPreset,
             asrStatsSink = { stats -> scope.launch { SessionBus.updateAsrStats(stats) } },
+            asrDecodeSink = { trace ->
+                diagnosticLog?.record("parakeet_window", trace.rawText, mapOf(
+                    "index" to trace.index,
+                    "stitchedText" to trace.emittedText,
+                    "removedWords" to trace.removedWords,
+                    "queueWaitMs" to trace.queueWaitMs,
+                    "decodeMs" to trace.decodeMs,
+                ))
+            },
         )
         resources.onForegroundStarted()
         captureResources = resources
@@ -152,8 +201,13 @@ class RealtimeTranslationService : Service() {
         val epoch = request.identity.audioEpoch
         when (event) {
             is CaptureEvent.Frame -> Unit // PCM never travels on the app state bus
-            is CaptureEvent.Gap -> SessionBus.onAudioGap(
-                event.sessionId, event.audioEpoch)
+            is CaptureEvent.Gap -> {
+                diagnosticLog?.record("audio_gap", metadata = mapOf(
+                    "sessionId" to event.sessionId,
+                    "audioEpoch" to event.audioEpoch,
+                ))
+                SessionBus.onAudioGap(event.sessionId, event.audioEpoch)
+            }
             is CaptureEvent.ReadFailure -> {
                 if (event.sessionId != id || event.audioEpoch != epoch) return
                 SessionBus.dispatch(SessionEvent.CaptureFailed(id, epoch))
@@ -183,6 +237,8 @@ class RealtimeTranslationService : Service() {
             try {
                 owner?.stop(id)
             } finally {
+                diagnosticLog?.finish()
+                diagnosticLog = null
                 captureResources?.abort() // cover failed / partially opened capture
                 captureResources = null
                 session = null
@@ -240,6 +296,8 @@ class RealtimeTranslationService : Service() {
         captureResources?.abort()
         captureResources = null
         session = null
+        diagnosticLog?.abort()
+        diagnosticLog = null
         if (::floatingCaptions.isInitialized) floatingCaptions.close()
         scope.cancel()
         SessionBus.onServiceInterrupted()
@@ -253,6 +311,7 @@ class RealtimeTranslationService : Service() {
         const val EXTRA_SESSION_ID = "session_id"
         const val EXTRA_ASR_MODEL = "asr_model"
         const val EXTRA_PARAKEET_WINDOW = "parakeet_window_preset"
+        const val EXTRA_SAVE_ASR_LOG = "save_asr_log"
         const val EXTRA_RESULT_CODE = "projection_result_code"
         const val EXTRA_PROJECTION_DATA = "projection_data"
         private const val CHANNEL_ID = "audio_capture_session"
