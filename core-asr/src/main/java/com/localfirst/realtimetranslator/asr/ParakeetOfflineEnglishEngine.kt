@@ -9,6 +9,7 @@ import com.localfirst.realtimetranslator.model.AsrRuntimeStats
 import com.localfirst.realtimetranslator.model.AsrUpdate
 import com.localfirst.realtimetranslator.model.ParakeetAudioChunker
 import com.localfirst.realtimetranslator.model.ParakeetOverlapStitcher
+import com.localfirst.realtimetranslator.model.ParakeetWindowPreset
 import com.localfirst.realtimetranslator.model.PcmFrame
 import com.localfirst.realtimetranslator.model.SessionIdentity
 import java.io.File
@@ -35,6 +36,7 @@ class ParakeetOfflineEnglishEngine(
     private val onUpdate: (AsrUpdate) -> Unit,
     private val onStats: (AsrRuntimeStats) -> Unit,
     private val onFailure: (Throwable) -> Unit,
+    private val preset: ParakeetWindowPreset = ParakeetWindowPreset.BALANCED,
 ) : AsrEngine {
     private data class PendingWindow(
         val window: ParakeetAudioChunker.Window,
@@ -45,7 +47,8 @@ class ParakeetOfflineEnglishEngine(
     private val model: OfflineRecognizer
     private val chunks = Channel<PendingWindow>(capacity = 3)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val chunker = ParakeetAudioChunker()
+    private val chunker = ParakeetAudioChunker(
+        windowMs = preset.windowMs, overlapMs = preset.overlapMs)
     @Volatile private var generation = 0L
     private val decoded = AtomicLong()
     private val dropped = AtomicLong()
@@ -57,6 +60,7 @@ class ParakeetOfflineEnglishEngine(
     @Volatile private var inputRmsPermille = 0
     @Volatile private var lastDecodeMs = 0L
     @Volatile private var lastQueueWaitMs = 0L
+    @Volatile private var lastWindowTurnaroundMs = 0L
     @Volatile private var closed = false
     private var finished = false
 
@@ -108,6 +112,7 @@ class ParakeetOfflineEnglishEngine(
                     // A reset/gap during native decode invalidates that result.
                     if (pending.generation != generation) continue
                     lastDecodeMs = elapsed
+                    lastWindowTurnaroundMs = (nowMs() - pending.queuedAtMs).coerceAtLeast(0)
                     decoded.incrementAndGet()
                     if (text.isBlank()) emptyResults.incrementAndGet()
                     val merged = stitcher.append(text)
@@ -173,7 +178,10 @@ class ParakeetOfflineEnglishEngine(
             inputRmsPermille = inputRmsPermille,
             emptyResults = emptyResults.get(),
             overlapOnlyResults = overlapOnlyResults.get(),
-            lastQueueWaitMs = lastQueueWaitMs))
+            lastQueueWaitMs = lastQueueWaitMs,
+            lastWindowTurnaroundMs = lastWindowTurnaroundMs,
+            windowMs = preset.windowMs,
+            overlapMs = preset.overlapMs))
     }
 
     override fun resetAfterGap() {
