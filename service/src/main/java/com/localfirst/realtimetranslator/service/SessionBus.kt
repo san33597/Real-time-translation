@@ -27,11 +27,14 @@ object SessionBus {
     val englishSubtitles: StateFlow<EnglishSubtitleState> = internalEnglish.asStateFlow()
     private val overlaySetting = MutableStateFlow(false)
     val overlayEnabled: StateFlow<Boolean> = overlaySetting.asStateFlow()
+    private val overlayTwoLineSetting = MutableStateFlow(true)
+    val overlayTwoLines: StateFlow<Boolean> = overlayTwoLineSetting.asStateFlow()
     private val activityVisibility = MutableStateFlow(false)
     val appVisible: StateFlow<Boolean> = activityVisibility.asStateFlow()
 
     // Explicit opt-in, not written to disk; no overlay is enabled on a fresh process.
     fun setOverlayEnabled(enabled: Boolean) { overlaySetting.value = enabled }
+    fun setOverlayTwoLines(enabled: Boolean) { overlayTwoLineSetting.value = enabled }
     fun setAppVisible(visible: Boolean) { activityVisibility.value = visible }
 
     internal fun dispatch(event: SessionEvent) {
