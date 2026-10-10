@@ -48,6 +48,35 @@ class ParakeetAudioChunkerTest {
         assertEquals("", s.append("   "))
     }
 
+    @Test fun windowPresetsHaveCorrectLengthsAndSafeWireFallback() {
+        assertEquals(2400, ParakeetWindowPreset.BALANCED.windowMs)
+        assertEquals(1920, ParakeetWindowPreset.BALANCED.hopMs)
+        assertEquals(1600, ParakeetWindowPreset.FAST.hopMs)
+        assertEquals(2560, ParakeetWindowPreset.LEGACY.hopMs)
+        assertEquals(ParakeetWindowPreset.BALANCED, ParakeetWindowPreset.fromWire(null))
+        assertEquals(ParakeetWindowPreset.BALANCED, ParakeetWindowPreset.fromWire("unknown"))
+        assertEquals(ParakeetWindowPreset.LEGACY, ParakeetWindowPreset.fromWire("legacy-3200"))
+        assertEquals(ParakeetWindowPreset.FAST, ParakeetWindowPreset.fromWire("fast-2000"))
+    }
+
+    @Test fun selectedBalancedWindowsKeepOverlapWithoutMissingInputSamples() {
+        val preset = ParakeetWindowPreset.BALANCED
+        val output = mutableListOf<ParakeetAudioChunker.Window>()
+        val assembler = ParakeetAudioChunker(
+            sampleRate = 1000, windowMs = preset.windowMs,
+            overlapMs = preset.overlapMs, minimumTailMs = 260)
+        val pcm = ShortArray(5000) { (it % 2000).toShort() }
+        assembler.append(pcm) { output.add(it) }
+        assertEquals(2, output.size)
+        assertEquals(2400, output[0].samples.size)
+        assertEquals(2400, output[1].samples.size)
+        assertArrayEquals(output[0].samples.copyOfRange(1920, 2400),
+            output[1].samples.copyOfRange(0, 480), 0.0001f)
+        assembler.finish { output.add(it) }
+        assertEquals(3, output.size)
+        assertEquals(1640, output[2].samples.size)
+    }
+
     @Test fun legacyWireFallbackIsZipformer() {
         assertEquals(AsrModel.ZIPFORMER, AsrModel.fromWire("unknown"))
         assertEquals(AsrModel.PARAKEET, AsrModel.fromWire("parakeet-v3-int8"))
