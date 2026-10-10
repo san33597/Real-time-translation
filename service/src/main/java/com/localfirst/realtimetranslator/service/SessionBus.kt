@@ -56,6 +56,13 @@ object SessionBus {
         if (coordinator.accept(update)) internalEnglish.value = coordinator.state
     }
 
+    /** Advance confirmed captions independently of when the ASR emits its next word. */
+    internal fun tickCaptions(nowMs: Long) {
+        if (internalState.value !is SessionState.Running &&
+            internalState.value !is SessionState.Starting) return
+        if (coordinator.tick(nowMs)) internalEnglish.value = coordinator.state
+    }
+
     internal fun onAudioGap(sessionId: String, epoch: Long) {
         val active = internalState.value.requestOrNull() ?: return
         if (active.identity.sessionId != sessionId || active.identity.audioEpoch != epoch) return
