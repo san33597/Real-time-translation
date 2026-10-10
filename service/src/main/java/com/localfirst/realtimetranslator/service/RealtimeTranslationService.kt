@@ -18,6 +18,7 @@ import android.provider.Settings
 import com.localfirst.realtimetranslator.model.AudioSource
 import com.localfirst.realtimetranslator.model.AsrModel
 import com.localfirst.realtimetranslator.model.ParakeetWindowPreset
+import com.localfirst.realtimetranslator.model.ParakeetStitchMode
 import com.localfirst.realtimetranslator.model.OverlayCaptionText
 import com.localfirst.realtimetranslator.model.CaptureEvent
 import com.localfirst.realtimetranslator.model.SessionEvent
@@ -118,6 +119,7 @@ class RealtimeTranslationService : Service() {
         val request = SessionRequest(SessionIdentity(id), source)
         val asrModel = AsrModel.fromWire(intent.getStringExtra(EXTRA_ASR_MODEL))
         val parakeetPreset = ParakeetWindowPreset.fromWire(intent.getStringExtra(EXTRA_PARAKEET_WINDOW))
+        val stitchMode = ParakeetStitchMode.fromWire(intent.getStringExtra(EXTRA_PARAKEET_STITCH_MODE))
         val saveAsrLog = intent.getBooleanExtra(EXTRA_SAVE_ASR_LOG, false)
         SessionBus.dispatch(SessionEvent.StartRequested(request))
         val modelReady = when (asrModel) {
@@ -151,6 +153,7 @@ class RealtimeTranslationService : Service() {
             diagnosticLog?.record("session_start", metadata = mapOf(
                 "model" to asrModel.wireId,
                 "preset" to parakeetPreset.wireId,
+                "stitchMode" to stitchMode.wireId,
                 "source" to source.name,
                 "windowMs" to parakeetPreset.windowMs,
                 "overlapMs" to parakeetPreset.overlapMs,
@@ -174,6 +177,7 @@ class RealtimeTranslationService : Service() {
             },
             asrModel = asrModel,
             parakeetPreset = parakeetPreset,
+            parakeetStitchMode = stitchMode,
             asrStatsSink = { stats -> scope.launch { SessionBus.updateAsrStats(stats) } },
             asrDecodeSink = { trace ->
                 diagnosticLog?.record("parakeet_window", trace.rawText, mapOf(
@@ -182,6 +186,8 @@ class RealtimeTranslationService : Service() {
                     "removedWords" to trace.removedWords,
                     "queueWaitMs" to trace.queueWaitMs,
                     "decodeMs" to trace.decodeMs,
+                    "stitchMode" to trace.stitchMode,
+                    "stitchReason" to trace.stitchReason,
                 ))
             },
         )
@@ -316,6 +322,7 @@ class RealtimeTranslationService : Service() {
         const val EXTRA_SESSION_ID = "session_id"
         const val EXTRA_ASR_MODEL = "asr_model"
         const val EXTRA_PARAKEET_WINDOW = "parakeet_window_preset"
+        const val EXTRA_PARAKEET_STITCH_MODE = "parakeet_stitch_mode"
         const val EXTRA_SAVE_ASR_LOG = "save_asr_log"
         const val EXTRA_RESULT_CODE = "projection_result_code"
         const val EXTRA_PROJECTION_DATA = "projection_data"
