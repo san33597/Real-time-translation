@@ -28,6 +28,7 @@ import com.localfirst.realtimetranslator.model.AudioSource
 import com.localfirst.realtimetranslator.model.AsrModel
 import com.localfirst.realtimetranslator.model.ParakeetWindowPreset
 import com.localfirst.realtimetranslator.model.ParakeetStitchMode
+import com.localfirst.realtimetranslator.model.CaptionPacing
 import com.localfirst.realtimetranslator.model.ProjectionDecision
 import com.localfirst.realtimetranslator.model.SessionIdentity
 import com.localfirst.realtimetranslator.model.SessionState
@@ -50,6 +51,8 @@ class MainActivity : ComponentActivity() {
     private var selectedParakeetPreset by mutableStateOf(ParakeetWindowPreset.LEGACY)
     private var selectedStitchMode by mutableStateOf(ParakeetStitchMode.LEGACY)
     private var pendingStitchMode = ParakeetStitchMode.LEGACY
+    private var selectedCaptionPacing by mutableStateOf(CaptionPacing.STABLE)
+    private var pendingCaptionPacing = CaptionPacing.STABLE
     private var pendingParakeetPreset = ParakeetWindowPreset.LEGACY
     private var pendingAsr = AsrModel.ZIPFORMER
     private var installingModel by mutableStateOf(false)
@@ -191,6 +194,8 @@ class MainActivity : ComponentActivity() {
                 asrModel = selectedAsr,
                 parakeetPreset = selectedParakeetPreset,
                 stitchMode = selectedStitchMode,
+                captionPacing = selectedCaptionPacing,
+                onChooseCaptionPacing = { selectedCaptionPacing = it },
                 onChooseStitchMode = { selectedStitchMode = it },
                 onChooseParakeetPreset = { selectedParakeetPreset = it },
                 zipformerReady = zipformerReady,
@@ -269,6 +274,7 @@ class MainActivity : ComponentActivity() {
         pendingAsr = selectedAsr
         pendingParakeetPreset = selectedParakeetPreset
         pendingStitchMode = selectedStitchMode
+        pendingCaptionPacing = selectedCaptionPacing
         pendingSaveAsrLog = saveAsrLog
         pendingId = SessionIdentity.new().sessionId
         message = null
@@ -308,6 +314,8 @@ class MainActivity : ComponentActivity() {
                         pendingParakeetPreset.wireId)
                     .putExtra(RealtimeTranslationService.EXTRA_PARAKEET_STITCH_MODE,
                         pendingStitchMode.wireId)
+                    .putExtra(RealtimeTranslationService.EXTRA_CAPTION_PACING,
+                        pendingCaptionPacing.wireId)
                     .putExtra(RealtimeTranslationService.EXTRA_SAVE_ASR_LOG, pendingSaveAsrLog))
         } catch (_: Exception) {
             message = "前台服务无法启动，请检查系统权限后重试。"
