@@ -24,6 +24,7 @@ class OrderedCaptionQueue(
     private var lastUtteranceId: Long? = null
     private var previousWords = emptyList<String>()
     private var committedWords = emptyList<String>()
+    private var newUtteranceBoundary = false
     private var current: String = ""
     private var shownAtMs: Long = -1
     private var lastChangedAtMs: Long = -1
@@ -43,6 +44,7 @@ class OrderedCaptionQueue(
         lastUtteranceId = null
         previousWords = emptyList()
         committedWords = emptyList()
+        newUtteranceBoundary = false
         current = ""
         shownAtMs = -1
         lastChangedAtMs = -1
@@ -56,6 +58,7 @@ class OrderedCaptionQueue(
         pending.clear()
         previousWords = emptyList()
         committedWords = emptyList()
+        newUtteranceBoundary = false
         lastUtteranceId = null
         current = ""
         shownAtMs = -1
@@ -67,6 +70,7 @@ class OrderedCaptionQueue(
             lastUtteranceId = update.utteranceId
             previousWords = emptyList()
             committedWords = emptyList()
+            newUtteranceBoundary = true
         }
 
         val currentWords = update.text.trim().split(Regex("\\s+"))
@@ -113,11 +117,12 @@ class OrderedCaptionQueue(
             // Merge fresh words into an undisplayed chunk to avoid a queue of
             // single-word captions when ASR confirms one word at a time.
             val last = pending.lastOrNull()
-            if (last != null && canAppend(last, word)) {
+            if (!newUtteranceBoundary && last != null && canAppend(last, word)) {
                 pending.removeLast()
                 pending.addLast("$last $word")
                 continue
             }
+            newUtteranceBoundary = false
             if (pending.size >= maxQueuedChunks) queueOverflows++
             else pending.addLast(word)
         }
