@@ -123,6 +123,27 @@ fun RealtimeTranslatorApp(
                                     color = if (stats.droppedWindows > 0) MaterialTheme.colorScheme.error
                                         else MaterialTheme.colorScheme.onSurface)
                             }
+                            asrStats?.let { stats ->
+                                Text(
+                                    "输入帧：${stats.inputFrames} · 当前峰值 ${stats.inputPeakPermille / 10.0}%" +
+                                        " · RMS ${stats.inputRmsPermille / 10.0}%",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Text(
+                                    "已提交窗口：${stats.queuedWindows} · 空识别：${stats.emptyResults}" +
+                                        " · 重叠去重后为空：${stats.overlapOnlyResults}" +
+                                        " · 最近排队等待：${stats.lastQueueWaitMs}ms",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (stats.droppedWindows > 0)
+                                        MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    "Parakeet 当前为固定重叠窗口，无 VAD / 能量阈值过滤。" +
+                                        "空识别不等于音频未被采集。",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
                             Text("最近 ASR 更新（仅内存，停止后清空）",
                                 style = MaterialTheme.typography.labelLarge)
                             debug.recent.takeLast(6).forEach { entry ->
