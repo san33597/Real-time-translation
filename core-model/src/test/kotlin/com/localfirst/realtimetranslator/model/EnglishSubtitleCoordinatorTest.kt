@@ -82,6 +82,21 @@ class EnglishSubtitleCoordinatorTest {
         assertEquals("", OverlayCaptionText.latest(coordinator.state))
     }
 
+    @Test fun dualRowStateFollowsCaptionQueueAndClearsOnGap() {
+        val c = EnglishSubtitleCoordinator()
+        c.begin("s", 0)
+        assertTrue(c.accept(event(0, 0, "FIRST SPEAKER", true, 100)))
+        assertTrue(c.accept(event(1, 0, "SECOND SPEAKER", true, 200)))
+        assertTrue(c.tick(850))
+        assertEquals("FIRST SPEAKER", c.state.previousCaption)
+        assertEquals("SECOND SPEAKER", c.state.displayCaption)
+        assertEquals("FIRST SPEAKER" to "SECOND SPEAKER",
+            OverlayCaptionText.rows(c.state, true))
+        c.gap()
+        assertEquals("", c.state.displayCaption)
+        assertEquals("", c.state.previousCaption)
+    }
+
     @Test fun diagnosticsAreBoundedAndClearedWhenSessionStops() {
         val coordinator = EnglishSubtitleCoordinator(partialIntervalMs = 0)
         coordinator.begin("s", 0)
