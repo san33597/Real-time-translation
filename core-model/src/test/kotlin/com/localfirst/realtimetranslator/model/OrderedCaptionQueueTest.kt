@@ -99,7 +99,8 @@ class OrderedCaptionQueueTest {
         assertEquals("FIRST", queue.previousText)
         assertEquals("SECOND", queue.visibleText)
         queue.ingest(event("THIRD", 0, true, 900, 2))
-        assertTrue(queue.advance(1600))
+        // A fresh final after the hold advances immediately; no obsolete timer tick needed.
+        assertFalse(queue.advance(1600))
         assertEquals("SECOND", queue.previousText)
         assertEquals("THIRD", queue.visibleText)
     }
