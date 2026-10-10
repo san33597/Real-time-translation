@@ -70,6 +70,10 @@ class EnglishSubtitleCoordinator(
     private var lastFinalId = -1L
     private val scheduler = OrderedCaptionQueue()
 
+    @Synchronized fun setCaptionPacing(pacing: CaptionPacing) {
+        scheduler.setPacing(pacing)
+    }
+
     @Synchronized fun begin(sessionId: String, audioEpoch: Long) {
         require(sessionId.isNotBlank() && audioEpoch >= 0)
         state = EnglishSubtitleState(sessionId = sessionId, audioEpoch = audioEpoch)

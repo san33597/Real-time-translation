@@ -3,6 +3,7 @@ package com.localfirst.realtimetranslator.service
 import com.localfirst.realtimetranslator.model.AsrUpdate
 import com.localfirst.realtimetranslator.model.AsrRuntimeStats
 import com.localfirst.realtimetranslator.model.CaptureStatus
+import com.localfirst.realtimetranslator.model.CaptionPacing
 import com.localfirst.realtimetranslator.model.EnglishSubtitleCoordinator
 import com.localfirst.realtimetranslator.model.EnglishSubtitleState
 import com.localfirst.realtimetranslator.model.requestOrNull
@@ -31,6 +32,11 @@ object SessionBus {
     val overlayTwoLines: StateFlow<Boolean> = overlayTwoLineSetting.asStateFlow()
     private val activityVisibility = MutableStateFlow(false)
     val appVisible: StateFlow<Boolean> = activityVisibility.asStateFlow()
+
+    /** Called by the service before StartRequested; does not modify ASR input/output. */
+    internal fun setCaptionPacing(mode: CaptionPacing) {
+        coordinator.setCaptionPacing(mode)
+    }
 
     // Explicit opt-in, not written to disk; no overlay is enabled on a fresh process.
     fun setOverlayEnabled(enabled: Boolean) { overlaySetting.value = enabled }

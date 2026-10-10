@@ -31,6 +31,15 @@ import kotlinx.coroutines.launch
  * At most three windows can be queued (bounded RAM and bounded inference lag).
  * Native recognizer is released on the decode worker's finally block.
  */
+/** Per-token emission timing reported by sherpa-onnx (relative seconds converted to ms). */
+data class ParakeetTokenTiming(
+    val token: String,
+    val relativeMs: Long,
+    val segmentMs: Long,
+    // Raw native TDT duration value, deliberately not converted without calibration.
+    val nativeDuration: Float?,
+)
+
 /** Full native Parakeet output, before overlap stitching, for opt-in diagnostic recording. */
 data class ParakeetWindowDiagnostic(
     val index: Long,
@@ -41,6 +50,15 @@ data class ParakeetWindowDiagnostic(
     val decodeMs: Long,
     val stitchMode: String,
     val stitchReason: String,
+    val segmentId: Long,
+    val windowStartSample: Long,
+    val windowEndSample: Long,
+    val windowReadyAtMs: Long,
+    val decodeStartAtMs: Long,
+    val decodeFinishAtMs: Long,
+    val tokenCount: Int,
+    val timestampCount: Int,
+    val tokenTimings: List<ParakeetTokenTiming>,
 )
 
 class ParakeetOfflineEnglishEngine(
@@ -53,6 +71,7 @@ class ParakeetOfflineEnglishEngine(
     private val onFailure: (Throwable) -> Unit,
     private val preset: ParakeetWindowPreset = ParakeetWindowPreset.LEGACY,
     private val stitchMode: ParakeetStitchMode = ParakeetStitchMode.LEGACY,
+    private val recordTokenTimings: Boolean = false,
 ) : AsrEngine {
     private data class PendingWindow(
         val window: ParakeetAudioChunker.Window,
@@ -127,14 +146,35 @@ class ParakeetOfflineEnglishEngine(
                     val begin = nowMs()
                     lastQueueWaitMs = (begin - pending.queuedAtMs).coerceAtLeast(0)
                     val stream = model.createStream()
-                    val text = try {
+                    val result = try {
                         stream.acceptWaveform(wave, 16000)
                         model.decode(stream)
-                        model.getResult(stream).text.trim()
+                        model.getResult(stream)
                     } finally {
                         stream.release()
                     }
-                    val elapsed = (nowMs() - begin).coerceAtLeast(0)
+                    val text = result.text.trim()
+                    val tokenTimings = if (recordTokenTimings) {
+                        val count = minOf(result.tokens.size, result.timestamps.size)
+                        buildList {
+                            for (i in 0 until count) {
+                                val seconds = result.timestamps[i]
+                                if (!seconds.isFinite() || seconds < 0f ||
+                                    seconds > wave.size / 16000f + 1f) continue
+                                val localMs = (seconds.toDouble() * 1000).toLong()
+                                val duration = result.durations.getOrNull(i)
+                                    ?.takeIf { it.isFinite() && it >= 0f }
+                                add(ParakeetTokenTiming(
+                                    token = result.tokens[i],
+                                    relativeMs = localMs,
+                                    segmentMs = pending.window.startSample * 1000L / 16000L + localMs,
+                                    nativeDuration = duration,
+                                ))
+                            }
+                        }
+                    } else emptyList()
+                    val decodeFinishAtMs = nowMs()
+                    val elapsed = (decodeFinishAtMs - begin).coerceAtLeast(0)
                     // A reset/gap during native decode invalidates that result.
                     if (pending.generation != generation) continue
                     lastDecodeMs = elapsed
@@ -167,6 +207,15 @@ class ParakeetOfflineEnglishEngine(
                         decodeMs = elapsed,
                         stitchMode = stitchMode.wireId,
                         stitchReason = stitchReason,
+                        segmentId = pending.window.segmentId,
+                        windowStartSample = pending.window.startSample,
+                        windowEndSample = pending.window.endSample,
+                        windowReadyAtMs = pending.queuedAtMs,
+                        decodeStartAtMs = begin,
+                        decodeFinishAtMs = decodeFinishAtMs,
+                        tokenCount = if (recordTokenTimings) result.tokens.size else 0,
+                        timestampCount = if (recordTokenTimings) result.timestamps.size else 0,
+                        tokenTimings = tokenTimings,
                     ))
                     if (text.isNotBlank() && merged.isBlank()) overlapOnlyResults.incrementAndGet()
                     if (merged.isNotBlank()) {

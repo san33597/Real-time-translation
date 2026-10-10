@@ -9,8 +9,8 @@ android {
         applicationId = "com.localfirst.realtimetranslator"
         minSdk = 29
         targetSdk = 36
-        versionCode = 14
-        versionName = "0.3.9"
+        versionCode = 15
+        versionName = "0.3.10"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures {

@@ -37,6 +37,7 @@ class AndroidSessionResources(
     private val asrDecodeSink: (ParakeetWindowDiagnostic) -> Unit = {},
     private val parakeetPreset: ParakeetWindowPreset = ParakeetWindowPreset.LEGACY,
     private val parakeetStitchMode: ParakeetStitchMode = ParakeetStitchMode.LEGACY,
+    private val recordTokenTimings: Boolean = false,
 ) : SessionResources {
     private var capture: AudioCapture? = null
     private var engine: AsrEngine? = null
@@ -66,7 +67,8 @@ class AndroidSessionResources(
                             request.identity.sessionId, request.identity.audioEpoch)) },
                         preset = parakeetPreset,
                         onDecode = asrDecodeSink,
-                        stitchMode = parakeetStitchMode)
+                        stitchMode = parakeetStitchMode,
+                        recordTokenTimings = recordTokenTimings)
                 }
             }
         }

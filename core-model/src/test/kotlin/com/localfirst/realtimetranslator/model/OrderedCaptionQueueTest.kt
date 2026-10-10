@@ -8,6 +8,44 @@ class OrderedCaptionQueueTest {
         ms: Long, utterance: Long = 0L) =
         AsrUpdate("test", 0, utterance, revision, text, isFinal, ms)
 
+    @Test fun responsiveModeDisplaysSecondCaptionEarlierWithoutChangingTextOrOrder() {
+        val stable = OrderedCaptionQueue()
+        val fast = OrderedCaptionQueue()
+        fast.setPacing(CaptionPacing.FAST)
+        for (queue in listOf(stable, fast)) {
+            queue.ingest(event("FIRST LINE", 0, true, 100, 0))
+            queue.ingest(event("SECOND LINE", 0, true, 200, 1))
+        }
+        assertFalse(stable.advance(620))
+        assertTrue(fast.advance(620))
+        assertEquals("FIRST LINE", stable.visibleText)
+        assertEquals("SECOND LINE", fast.visibleText)
+        assertEquals("FIRST LINE", fast.previousText)
+        assertTrue(stable.advance(900))
+        assertEquals("SECOND LINE", stable.visibleText)
+        assertEquals(0, fast.queueOverflows)
+        assertEquals(0, stable.queueOverflows)
+    }
+
+    @Test fun responsiveModeRetainsOrderedBurstWhenQueueHasSeveralCaptions() {
+        val fast = OrderedCaptionQueue()
+        fast.setPacing(CaptionPacing.FAST)
+        (0L..3L).forEach { i -> fast.ingest(event("ITEM$i", 0, true, 100L, i)) }
+        val transcript = mutableListOf(fast.visibleText)
+        var time = 100L
+        while (fast.queueDepth > 0) {
+            time += 250L
+            if (fast.advance(time)) transcript.add(fast.visibleText)
+        }
+        assertEquals(listOf("ITEM0", "ITEM1", "ITEM2", "ITEM3"), transcript)
+    }
+
+    @Test fun unknownPacingDefaultsToOriginalStableMode() {
+        assertEquals(CaptionPacing.STABLE, CaptionPacing.fromWire(null))
+        assertEquals(CaptionPacing.STABLE, CaptionPacing.fromWire("invalid"))
+        assertEquals(CaptionPacing.FAST, CaptionPacing.fromWire("responsive-r310"))
+    }
+
     @Test fun fastTwoPartDialogueIsNotSkippedWhenFinalContainsBoth() {
         val queue = OrderedCaptionQueue()
         queue.ingest(event("HERE YOU ARE", 0, false, 100))

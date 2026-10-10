@@ -27,6 +27,7 @@ import com.localfirst.realtimetranslator.model.AudioSource
 import com.localfirst.realtimetranslator.model.AsrModel
 import com.localfirst.realtimetranslator.model.ParakeetWindowPreset
 import com.localfirst.realtimetranslator.model.ParakeetStitchMode
+import com.localfirst.realtimetranslator.model.CaptionPacing
 import com.localfirst.realtimetranslator.model.AsrRuntimeStats
 import com.localfirst.realtimetranslator.model.CaptureStatus
 import com.localfirst.realtimetranslator.model.EnglishSubtitleState
@@ -42,6 +43,8 @@ fun RealtimeTranslatorApp(
     parakeetPreset: ParakeetWindowPreset,
     stitchMode: ParakeetStitchMode,
     onChooseStitchMode: (ParakeetStitchMode) -> Unit,
+    captionPacing: CaptionPacing,
+    onChooseCaptionPacing: (CaptionPacing) -> Unit,
     onChooseParakeetPreset: (ParakeetWindowPreset) -> Unit,
     zipformerReady: Boolean,
     parakeetReady: Boolean,
@@ -74,7 +77,7 @@ fun RealtimeTranslatorApp(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("R3.9 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
+                Text("R3.10 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
                 Text("离线英语识别测试 · 不保存音频 · ASR 文字日志仅在主动开启后保存")
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
@@ -189,7 +192,23 @@ fun RealtimeTranslatorApp(
                         }
                     }
                 }
-                Text("R3.8 本地诊断日志", style = MaterialTheme.typography.titleMedium)
+                Text("字幕显示节奏", style = MaterialTheme.typography.titleMedium)
+                CaptionPacing.entries.forEach { pace ->
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        RadioButton(
+                            selected = captionPacing == pace,
+                            onClick = { onChooseCaptionPacing(pace) },
+                            enabled = idle && !installingModel,
+                        )
+                        Text(pace.label, modifier = Modifier.padding(top = 12.dp))
+                    }
+                }
+                Text(
+                    "实验模式仅将字幕保留时间从 750ms 缩短至约 420ms，积压时进一步缩短。" +
+                        " 不修改 Parakeet 的 3.2 秒音频窗口，字幕可能滚动更快。",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text("R3.10 本地诊断日志（含 token 时间戳）", style = MaterialTheme.typography.titleMedium)
                 Row(modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("保存本次 ASR 文字更新",
@@ -331,7 +350,7 @@ fun RealtimeTranslatorApp(
                 }
                 OutlinedButton(onClick = onStop, enabled = !idle) { Text("停止采集") }
                 Text(
-                    "R3.9 保留旧版去重作为默认；实验模式只改变窗口文本衔接，不改变 ASR 模型和字幕调度。",
+                    "R3.10 研究字幕显示延迟并采集 token 时间戳；保持原模型与识别窗口不变。",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
