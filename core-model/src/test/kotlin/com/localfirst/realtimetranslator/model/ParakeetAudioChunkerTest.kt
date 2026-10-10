@@ -48,6 +48,60 @@ class ParakeetAudioChunkerTest {
         assertEquals("", s.append("   "))
     }
 
+    @Test fun windowPresetsHaveCorrectLengthsAndSafeWireFallback() {
+        assertEquals(2400, ParakeetWindowPreset.BALANCED.windowMs)
+        assertEquals(1920, ParakeetWindowPreset.BALANCED.hopMs)
+        assertEquals(1600, ParakeetWindowPreset.FAST.hopMs)
+        assertEquals(2560, ParakeetWindowPreset.LEGACY.hopMs)
+        assertEquals(ParakeetWindowPreset.LEGACY, ParakeetWindowPreset.fromWire(null))
+        assertEquals(ParakeetWindowPreset.LEGACY, ParakeetWindowPreset.fromWire("unknown"))
+        assertEquals(ParakeetWindowPreset.LEGACY, ParakeetWindowPreset.fromWire("legacy-3200"))
+        assertEquals(ParakeetWindowPreset.FAST, ParakeetWindowPreset.fromWire("fast-2000"))
+    }
+
+    @Test fun selectedBalancedWindowsKeepOverlapWithoutMissingInputSamples() {
+        val preset = ParakeetWindowPreset.BALANCED
+        val output = mutableListOf<ParakeetAudioChunker.Window>()
+        val assembler = ParakeetAudioChunker(
+            sampleRate = 1000, windowMs = preset.windowMs,
+            overlapMs = preset.overlapMs, minimumTailMs = 260)
+        val pcm = ShortArray(5000) { (it % 2000).toShort() }
+        assembler.append(pcm) { output.add(it) }
+        assertEquals(2, output.size)
+        assertEquals(2400, output[0].samples.size)
+        assertEquals(2400, output[1].samples.size)
+        assertArrayEquals(output[0].samples.copyOfRange(1920, 2400),
+            output[1].samples.copyOfRange(0, 480), 0.0001f)
+        assembler.finish { output.add(it) }
+        assertEquals(3, output.size)
+        assertEquals(1160, output[2].samples.size)
+    }
+
+    @Test fun r35LegacyWindowMatchesTheOriginalDefaultChunker() {
+        val preset = ParakeetWindowPreset.LEGACY
+        val original = ParakeetAudioChunker()
+        val restored = ParakeetAudioChunker(windowMs = preset.windowMs,
+            overlapMs = preset.overlapMs)
+        val a = mutableListOf<ParakeetAudioChunker.Window>()
+        val b = mutableListOf<ParakeetAudioChunker.Window>()
+        val samples = ShortArray(120_000) { (it % 11003 - 5501).toShort() }
+        // Vary PCM delivery boundaries; exactly the same samples must be decoded.
+        var offset = 0
+        while (offset < samples.size) {
+            val amount = minOf(240 + (offset % 761), samples.size - offset)
+            val frame = samples.copyOfRange(offset, offset + amount)
+            original.append(frame) { a.add(it) }
+            restored.append(frame) { b.add(it) }
+            offset += amount
+        }
+        assertEquals(a.size, b.size)
+        assertTrue(a.isNotEmpty())
+        a.indices.forEach { i ->
+            assertEquals(a[i].index, b[i].index)
+            assertArrayEquals(a[i].samples, b[i].samples, 0f)
+        }
+    }
+
     @Test fun legacyWireFallbackIsZipformer() {
         assertEquals(AsrModel.ZIPFORMER, AsrModel.fromWire("unknown"))
         assertEquals(AsrModel.PARAKEET, AsrModel.fromWire("parakeet-v3-int8"))

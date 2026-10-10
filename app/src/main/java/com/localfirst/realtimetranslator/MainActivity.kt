@@ -26,6 +26,7 @@ import com.localfirst.realtimetranslator.asr.EnglishModelInstaller
 import com.localfirst.realtimetranslator.asr.ParakeetModelInstaller
 import com.localfirst.realtimetranslator.model.AudioSource
 import com.localfirst.realtimetranslator.model.AsrModel
+import com.localfirst.realtimetranslator.model.ParakeetWindowPreset
 import com.localfirst.realtimetranslator.model.ProjectionDecision
 import com.localfirst.realtimetranslator.model.SessionIdentity
 import com.localfirst.realtimetranslator.model.SessionState
@@ -44,6 +45,9 @@ class MainActivity : ComponentActivity() {
     private var zipformerReady by mutableStateOf(false)
     private var parakeetReady by mutableStateOf(false)
     private var selectedAsr by mutableStateOf(AsrModel.ZIPFORMER)
+    private var selectedParakeetPreset by mutableStateOf(ParakeetWindowPreset.LEGACY)
+    private var pendingParakeetPreset = ParakeetWindowPreset.LEGACY
+    private var pendingAsr = AsrModel.ZIPFORMER
     private var installingModel by mutableStateOf(false)
     private var overlayAllowed by mutableStateOf(false)
     private var requestedOverlayGrant = false
@@ -157,6 +161,8 @@ class MainActivity : ComponentActivity() {
                 captureStatus = capture,
                 asrStats = asrStats,
                 asrModel = selectedAsr,
+                parakeetPreset = selectedParakeetPreset,
+                onChooseParakeetPreset = { selectedParakeetPreset = it },
                 zipformerReady = zipformerReady,
                 parakeetReady = parakeetReady,
                 onChooseAsr = { next ->
@@ -226,6 +232,8 @@ class MainActivity : ComponentActivity() {
             return
         }
         pendingSource = source
+        pendingAsr = selectedAsr
+        pendingParakeetPreset = selectedParakeetPreset
         pendingId = SessionIdentity.new().sessionId
         message = null
         if (Build.VERSION.SDK_INT >= 33 &&
@@ -259,7 +267,9 @@ class MainActivity : ComponentActivity() {
     private fun startServiceForSource(intent: Intent) {
         try {
             ContextCompat.startForegroundService(this,
-                intent.putExtra(RealtimeTranslationService.EXTRA_ASR_MODEL, selectedAsr.wireId))
+                intent.putExtra(RealtimeTranslationService.EXTRA_ASR_MODEL, pendingAsr.wireId)
+                    .putExtra(RealtimeTranslationService.EXTRA_PARAKEET_WINDOW,
+                        pendingParakeetPreset.wireId))
         } catch (_: Exception) {
             message = "前台服务无法启动，请检查系统权限后重试。"
         }
