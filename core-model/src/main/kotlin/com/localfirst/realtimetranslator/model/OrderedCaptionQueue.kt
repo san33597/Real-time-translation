@@ -10,7 +10,7 @@ package com.localfirst.realtimetranslator.model
  * guaranteed correct. Revisions to already queued words are reported.
  */
 class OrderedCaptionQueue(
-    private val maxChunkCharacters: Int = 60,
+    private val maxChunkCharacters: Int = 44,
     private val maxChunkWords: Int = 9,
     private val maxQueuedChunks: Int = 48,
     private val standardHoldMs: Long = 750,
