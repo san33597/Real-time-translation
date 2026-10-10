@@ -18,6 +18,7 @@ import android.provider.Settings
 import com.localfirst.realtimetranslator.model.AudioSource
 import com.localfirst.realtimetranslator.model.AsrModel
 import com.localfirst.realtimetranslator.model.ParakeetWindowPreset
+import com.localfirst.realtimetranslator.model.OverlayCaptionText
 import com.localfirst.realtimetranslator.model.CaptureEvent
 import com.localfirst.realtimetranslator.model.SessionEvent
 import com.localfirst.realtimetranslator.model.SessionIdentity
@@ -68,8 +69,12 @@ class RealtimeTranslationService : Service() {
                         c.previousCaption + "|" + c.displayCaption
                     if (key != lastLoggedCaptionKey) {
                         lastLoggedCaptionKey = key
-                        diagnosticLog?.record("caption_state", c.displayCaption, mapOf(
-                            "previous" to c.previousCaption,
+                        val (renderPrevious, renderCurrent) =
+                            OverlayCaptionText.rows(c, frame.twoLines)
+                        diagnosticLog?.record("caption_state", renderCurrent, mapOf(
+                            "previous" to renderPrevious,
+                            "coordinatorCurrent" to c.displayCaption,
+                            "coordinatorPrevious" to c.previousCaption,
                             "queueDepth" to c.diagnostics.queuedChunks,
                             "queueOverflows" to c.diagnostics.queueOverflows,
                             "overlayEnabled" to frame.enabled,
