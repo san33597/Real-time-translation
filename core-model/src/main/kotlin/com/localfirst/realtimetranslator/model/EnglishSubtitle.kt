@@ -32,7 +32,6 @@ data class CaptionDiagnostics(
     val displayedChunks: Int = 0,
     val queueOverflows: Int = 0,
     val correctedPrefixes: Int = 0,
-    val lastCaptionWaitMs: Long = 0,
 )
 
 data class EnglishSubtitleState(
@@ -154,7 +153,6 @@ class EnglishSubtitleCoordinator(
         displayedChunks = scheduler.displayedChunks,
         queueOverflows = scheduler.queueOverflows,
         correctedPrefixes = scheduler.revisedStablePrefixes,
-        lastCaptionWaitMs = scheduler.lastCaptionWaitMs,
     )
 
     @Synchronized fun gap() {
