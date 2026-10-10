@@ -45,8 +45,8 @@ class MainActivity : ComponentActivity() {
     private var zipformerReady by mutableStateOf(false)
     private var parakeetReady by mutableStateOf(false)
     private var selectedAsr by mutableStateOf(AsrModel.ZIPFORMER)
-    private var selectedParakeetPreset by mutableStateOf(ParakeetWindowPreset.BALANCED)
-    private var pendingParakeetPreset = ParakeetWindowPreset.BALANCED
+    private var selectedParakeetPreset by mutableStateOf(ParakeetWindowPreset.LEGACY)
+    private var pendingParakeetPreset = ParakeetWindowPreset.LEGACY
     private var pendingAsr = AsrModel.ZIPFORMER
     private var installingModel by mutableStateOf(false)
     private var overlayAllowed by mutableStateOf(false)
