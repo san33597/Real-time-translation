@@ -274,7 +274,7 @@ fun RealtimeTranslatorApp(
                 }
                 OutlinedButton(onClick = onStop, enabled = !idle) { Text("停止采集") }
                 Text(
-                    "R3.6 Parakeet 为分块离线 ASR；可对比 2.4s / 2.0s / 3.2s 的实时性与准确率。",,
+                    "R3.6 Parakeet 为分块离线 ASR；可对比 2.4s / 2.0s / 3.2s 的实时性与准确率。",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
