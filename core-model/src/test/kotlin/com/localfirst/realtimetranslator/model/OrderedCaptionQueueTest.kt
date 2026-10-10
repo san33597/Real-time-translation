@@ -32,6 +32,19 @@ class OrderedCaptionQueueTest {
         assertEquals("THANK YOU", queue.visibleText)
     }
 
+    @Test fun separateFinalUtterancesDoNotMergeIntoSameQueuedChunk() {
+        val queue = OrderedCaptionQueue()
+        queue.ingest(event("FIRST LINE", 0, true, 100, 0))
+        queue.ingest(event("SECOND LINE", 0, true, 200, 1))
+        queue.ingest(event("THIRD LINE", 0, true, 300, 2))
+        assertEquals("FIRST LINE", queue.visibleText)
+        assertEquals(2, queue.queueDepth)
+        queue.advance(1200)
+        assertEquals("SECOND LINE", queue.visibleText)
+        queue.advance(2200)
+        assertEquals("THIRD LINE", queue.visibleText)
+    }
+
     @Test fun continuousSpeechNeverJumpsToLastWords() {
         val queue = OrderedCaptionQueue()
         val words = (1..38).map { "WORD$it" }
