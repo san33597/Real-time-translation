@@ -13,14 +13,15 @@ class OrderedCaptionQueue(
     private val maxChunkCharacters: Int = 44,
     private val maxChunkWords: Int = 9,
     private val maxQueuedChunks: Int = 48,
-    private val standardHoldMs: Long = 750,
+    private val standardHoldMs: Long = 260,
 ) {
     init {
         require(maxChunkCharacters >= 16 && maxChunkWords >= 2)
         require(maxQueuedChunks >= 2 && standardHoldMs > 0)
     }
 
-    private val pending = ArrayDeque<String>()
+    private data class QueuedChunk(val text: String, val enqueuedAtMs: Long)
+    private val pending = ArrayDeque<QueuedChunk>()
     private var lastUtteranceId: Long? = null
     private var previousWords = emptyList<String>()
     private var committedWords = emptyList<String>()
@@ -35,6 +36,8 @@ class OrderedCaptionQueue(
     var queueOverflows: Int = 0
         private set
     var revisedStablePrefixes: Int = 0
+        private set
+    var lastCaptionWaitMs: Long = 0
         private set
     val queueDepth: Int get() = pending.size
     val visibleText: String get() = current
@@ -54,6 +57,7 @@ class OrderedCaptionQueue(
         displayedChunks = 0
         queueOverflows = 0
         revisedStablePrefixes = 0
+        lastCaptionWaitMs = 0
     }
 
     /** Flush queued captions on audio gaps: hypotheses spanning missing PCM are unreliable. */
@@ -67,6 +71,7 @@ class OrderedCaptionQueue(
         previous = ""
         shownAtMs = -1
         lastChangedAtMs = -1
+        lastCaptionWaitMs = 0
     }
 
     fun ingest(update: AsrUpdate) {
@@ -89,7 +94,7 @@ class OrderedCaptionQueue(
         if (confirmedPrefix < committedWords.size) revisedStablePrefixes++
 
         if (safeCount > committedWords.size) {
-            appendWords(currentWords.subList(committedWords.size, safeCount))
+            appendWords(currentWords.subList(committedWords.size, safeCount), update.elapsedRealtimeMs)
         }
         // Only the aligned shared prefix is considered newly verified.
         if (safeCount >= committedWords.size) {
@@ -102,36 +107,38 @@ class OrderedCaptionQueue(
     /** Must be called from the foreground service, even while ASR emits no text. */
     fun advance(nowMs: Long): Boolean {
         if (pending.isEmpty()) return false
-        // When several confirmed fragments arrive at once, scroll quickly rather
-        // than building seconds of caption lag; the previous line stays readable.
-        val waiting = if (pending.size >= 4) 180L
-            else if (pending.size >= 2) 320L
+        // This is a presentation throttle, not an ASR queue: keep the last
+        // caption above the newest rather than waiting ~750 ms per segment.
+        val waiting = if (pending.size >= 4) minOf(120L, standardHoldMs)
+            else if (pending.size >= 2) minOf(180L, standardHoldMs)
             else standardHoldMs
         if (current.isNotBlank() && shownAtMs >= 0 &&
             nowMs >= shownAtMs && nowMs - shownAtMs < waiting) return false
 
         previous = current
-        current = pending.removeFirst()
+        val chunk = pending.removeFirst()
+        current = chunk.text
+        lastCaptionWaitMs = (nowMs - chunk.enqueuedAtMs).coerceAtLeast(0)
         shownAtMs = nowMs
         lastChangedAtMs = nowMs
         displayedChunks++
         return true
     }
 
-    private fun appendWords(words: List<String>) {
+    private fun appendWords(words: List<String>, enqueuedAtMs: Long) {
         if (words.isEmpty()) return
         for (word in words) {
             // Merge fresh words into an undisplayed chunk to avoid a queue of
             // single-word captions when ASR confirms one word at a time.
             val last = pending.lastOrNull()
-            if (!newUtteranceBoundary && last != null && canAppend(last, word)) {
+            if (!newUtteranceBoundary && last != null && canAppend(last.text, word)) {
                 pending.removeLast()
-                pending.addLast("$last $word")
+                pending.addLast(last.copy(text = "${last.text} $word"))
                 continue
             }
             newUtteranceBoundary = false
             if (pending.size >= maxQueuedChunks) queueOverflows++
-            else pending.addLast(word)
+            else pending.addLast(QueuedChunk(word, enqueuedAtMs))
         }
     }
 
