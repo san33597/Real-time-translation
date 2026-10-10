@@ -4,7 +4,7 @@ package com.localfirst.realtimetranslator.model
  * Short overlapping inference windows. All PCM is transient RAM; the caller
  * must deliver completed windows to a DIFFERENT decoder worker, not decode on
  * the AudioRecord consumption thread. Fixed windows work with music/noise,
- * unlike energy-only VAD, and 640ms overlap protects spoken window edges.
+ * unlike energy-only VAD. A per-session overlap preset protects spoken window edges.
  */
 class ParakeetAudioChunker(
     private val sampleRate: Int = 16_000,
@@ -66,11 +66,18 @@ class ParakeetAudioChunker(
 class ParakeetOverlapStitcher(private val maxCompareWords: Int = 12) {
     init { require(maxCompareWords >= 2) }
     private var previous = emptyList<String>()
+    /** Observability only; has no effect on deduplication decisions. */
+    var lastDuplicateWords: Int = 0
+        private set
 
-    fun reset() { previous = emptyList() }
+    fun reset() {
+        previous = emptyList()
+        lastDuplicateWords = 0
+    }
 
     fun append(result: String): String {
         val tokens = result.trim().split(Regex("\\s+")).filter(String::isNotBlank)
+        lastDuplicateWords = 0
         if (tokens.isEmpty()) return ""
         var duplicate = 0
         val possible = minOf(previous.size, tokens.size, maxCompareWords)
@@ -83,6 +90,7 @@ class ParakeetOverlapStitcher(private val maxCompareWords: Int = 12) {
             }
         }
         previous = tokens
+        lastDuplicateWords = duplicate
         return tokens.drop(duplicate).joinToString(" ")
     }
 

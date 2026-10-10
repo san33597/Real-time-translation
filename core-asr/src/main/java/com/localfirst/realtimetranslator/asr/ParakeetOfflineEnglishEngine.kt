@@ -60,11 +60,15 @@ class ParakeetOfflineEnglishEngine(
     private val inputFrames = AtomicLong()
     private val emptyResults = AtomicLong()
     private val overlapOnlyResults = AtomicLong()
+    private val removedOverlapWords = AtomicLong()
     @Volatile private var inputPeakPermille = 0
     @Volatile private var inputRmsPermille = 0
     @Volatile private var lastDecodeMs = 0L
     @Volatile private var lastQueueWaitMs = 0L
     @Volatile private var lastWindowTurnaroundMs = 0L
+    @Volatile private var lastDecoderExcerpt = ""
+    @Volatile private var lastEmittedExcerpt = ""
+    @Volatile private var lastRemovedOverlapWords = 0
     @Volatile private var closed = false
     private var finished = false
 
@@ -120,6 +124,12 @@ class ParakeetOfflineEnglishEngine(
                     decoded.incrementAndGet()
                     if (text.isBlank()) emptyResults.incrementAndGet()
                     val merged = stitcher.append(text)
+                    // Diagnostics only: preserve the existing overlap matching and ASR output.
+                    val removedWords = stitcher.lastDuplicateWords
+                    lastRemovedOverlapWords = removedWords
+                    removedOverlapWords.addAndGet(removedWords.toLong())
+                    lastDecoderExcerpt = text.takeLast(160)
+                    lastEmittedExcerpt = merged.takeLast(160)
                     if (text.isNotBlank() && merged.isBlank()) overlapOnlyResults.incrementAndGet()
                     if (merged.isNotBlank()) {
                         onUpdate(AsrUpdate(identity.sessionId, identity.audioEpoch,
@@ -185,7 +195,11 @@ class ParakeetOfflineEnglishEngine(
             lastQueueWaitMs = lastQueueWaitMs,
             lastWindowTurnaroundMs = lastWindowTurnaroundMs,
             windowMs = preset.windowMs,
-            overlapMs = preset.overlapMs))
+            overlapMs = preset.overlapMs,
+            lastDecoderExcerpt = lastDecoderExcerpt,
+            lastEmittedExcerpt = lastEmittedExcerpt,
+            lastRemovedOverlapWords = lastRemovedOverlapWords,
+            totalRemovedOverlapWords = removedOverlapWords.get()))
     }
 
     override fun resetAfterGap() {
