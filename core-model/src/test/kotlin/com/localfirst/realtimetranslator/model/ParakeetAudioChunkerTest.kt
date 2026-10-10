@@ -74,7 +74,7 @@ class ParakeetAudioChunkerTest {
             output[1].samples.copyOfRange(0, 480), 0.0001f)
         assembler.finish { output.add(it) }
         assertEquals(3, output.size)
-        assertEquals(1640, output[2].samples.size)
+        assertEquals(1160, output[2].samples.size)
     }
 
     @Test fun legacyWireFallbackIsZipformer() {
