@@ -47,7 +47,7 @@ class ParakeetOfflineEnglishEngine(
     private var decoded = 0L
     private var dropped = 0L
     private var lastDecodeMs = 0L
-    private var closed = false
+    @Volatile private var closed = false
     private var finished = false
 
     init {
