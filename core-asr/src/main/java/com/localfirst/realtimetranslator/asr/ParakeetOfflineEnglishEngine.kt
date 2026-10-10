@@ -29,12 +29,23 @@ import kotlinx.coroutines.launch
  * At most three windows can be queued (bounded RAM and bounded inference lag).
  * Native recognizer is released on the decode worker's finally block.
  */
+/** Full native Parakeet output, before overlap stitching, for opt-in diagnostic recording. */
+data class ParakeetWindowDiagnostic(
+    val index: Long,
+    val rawText: String,
+    val emittedText: String,
+    val removedWords: Int,
+    val queueWaitMs: Long,
+    val decodeMs: Long,
+)
+
 class ParakeetOfflineEnglishEngine(
     private val identity: SessionIdentity,
     modelDirectory: File,
     private val nowMs: () -> Long,
     private val onUpdate: (AsrUpdate) -> Unit,
     private val onStats: (AsrRuntimeStats) -> Unit,
+    private val onDecode: (ParakeetWindowDiagnostic) -> Unit = {},
     private val onFailure: (Throwable) -> Unit,
     private val preset: ParakeetWindowPreset = ParakeetWindowPreset.LEGACY,
 ) : AsrEngine {
@@ -130,6 +141,14 @@ class ParakeetOfflineEnglishEngine(
                     removedOverlapWords.addAndGet(removedWords.toLong())
                     lastDecoderExcerpt = text.takeLast(160)
                     lastEmittedExcerpt = merged.takeLast(160)
+                    onDecode(ParakeetWindowDiagnostic(
+                        index = pending.window.index,
+                        rawText = text,
+                        emittedText = merged,
+                        removedWords = removedWords,
+                        queueWaitMs = lastQueueWaitMs,
+                        decodeMs = elapsed,
+                    ))
                     if (text.isNotBlank() && merged.isBlank()) overlapOnlyResults.incrementAndGet()
                     if (merged.isNotBlank()) {
                         onUpdate(AsrUpdate(identity.sessionId, identity.audioEpoch,
