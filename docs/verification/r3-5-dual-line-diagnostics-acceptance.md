@@ -4,10 +4,11 @@
 
 - Based on `feat/r3-4-parakeet-int8-asr`, preserves R2 and R3.4 as separate baselines.
 - Real dual-row overlay: previous displayed fragment (muted) above current fragment (white).
-- Defaults to two rows; app switch returns to one row without restarting capture. Each row permits up to two visual wrapped lines, so very long captions are ellipsized instead of covering the whole video.
+- Defaults to two rows; app switch returns to one row without restarting capture. Each row occupies one visual line, with font auto-sizing (16sp down to 12sp) and ellipsis as a last resort; scheduler fragments are capped at 44 characters to limit clipping.
 - Reduces scheduler hold time to 750ms normally, 320ms with 2–3 queued fragments, 180ms with 4+ queued fragments. This helps catch up instead of introducing unbounded caption delay; content is **not** retranslated or edited.
 - ASR transcripts and in-app traces remain independent of subtitle presentation. No model upgrade, translation, cloud calls or forced noise suppression.
 - Parakeet diagnostics (in memory): input frames, PCM peak/RMS, queued/decoded/dropped windows, empty model results, results fully removed by exact-overlap deduplication, JNI decode time, and queue wait. No voice-activity detection or energy-gated audio dropping occurs in the R3.4/R3.5 Parakeet path.
+- Prefer installed Parakeet at app startup; Zipformer remains selectable and is used if Parakeet is absent.
 - No audio saved and no transcripts written to disk.
 
 ## Build
