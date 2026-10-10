@@ -52,6 +52,10 @@ fun RealtimeTranslatorApp(
     overlayAllowed: Boolean,
     onToggleOverlay: (Boolean) -> Unit,
     overlayTwoLines: Boolean,
+    saveAsrLog: Boolean,
+    onToggleAsrLog: (Boolean) -> Unit,
+    onExportAsrLog: () -> Unit,
+    onClearAsrLogs: () -> Unit,
     onToggleOverlayTwoLines: (Boolean) -> Unit,
     message: String?,
     onStart: (AudioSource) -> Unit,
@@ -67,8 +71,8 @@ fun RealtimeTranslatorApp(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("R3.7 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
-                Text("离线英语识别测试 · 暂不翻译 · 不保存音频和识别内容")
+                Text("R3.8 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
+                Text("离线英语识别测试 · 不保存音频 · ASR 文字日志仅在主动开启后保存")
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -90,7 +94,7 @@ fun RealtimeTranslatorApp(
                     }
                 }
                 OutlinedButton(onClick = { showDiagnostics = !showDiagnostics }) {
-                    Text(if (showDiagnostics) "收起识别诊断（仅内存）" else "展开识别诊断：ASR 原文 vs 字幕")
+                    Text(if (showDiagnostics) "收起实时识别诊断" else "展开识别诊断：ASR 原文 vs 字幕")
                 }
                 if (showDiagnostics) {
                     val debug = englishSubtitles.diagnostics
@@ -180,6 +184,27 @@ fun RealtimeTranslatorApp(
                                 )
                             }
                         }
+                    }
+                }
+                Text("R3.8 本地诊断日志", style = MaterialTheme.typography.titleMedium)
+                Row(modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("保存本次 ASR 文字更新",
+                        modifier = Modifier.weight(1f).padding(top = 12.dp))
+                    Switch(checked = saveAsrLog, onCheckedChange = onToggleAsrLog, enabled = idle)
+                }
+                Text(
+                    "默认关闭；开启后仅在本机记录识别原文、去重前后结果、字幕状态和时间戳。" +
+                        " 不存音频、不上传；最多保留 8 份，每份约 4MiB。请在停止采集后导出 JSONL。",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Row(modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onExportAsrLog, enabled = idle) {
+                        Text("导出最近一份日志")
+                    }
+                    OutlinedButton(onClick = onClearAsrLogs, enabled = idle) {
+                        Text("清空本地日志")
                     }
                 }
                 Text("当前识别引擎（停止采集后可切换）",
@@ -287,7 +312,7 @@ fun RealtimeTranslatorApp(
                 }
                 OutlinedButton(onClick = onStop, enabled = !idle) { Text("停止采集") }
                 Text(
-                    "R3.7 默认沿用 R3.5 识别模式；1280ms 重叠仅供单独测试。",
+                    "R3.8 保持 R3.7 的识别窗口和字幕调度不变，新增可选诊断日志。",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
