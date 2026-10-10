@@ -170,6 +170,13 @@ class ParakeetOfflineEnglishEngine(
                 val wave = pending.window.samples
                 try {
                     if (pending.generation != generation) continue
+                    if (workerGeneration != pending.generation) {
+                        legacyStitcher.reset()
+                        guardedStitcher.reset()
+                        lastFullRaw = ""
+                        lastFinalWindow = -1L
+                        workerGeneration = pending.generation
+                    }
                     if (kind == DecodeKind.PROBE) {
                         val queueWait = (nowMs() - pending.queuedAtMs).coerceAtLeast(0)
                         if (previewMode == ParakeetPreviewMode.OFF ||
@@ -210,13 +217,6 @@ class ParakeetOfflineEnglishEngine(
                                 pending.window.index, 0L, safe, false, nowMs()))
                         }
                         continue
-                    }
-                    if (workerGeneration != pending.generation) {
-                        legacyStitcher.reset()
-                        guardedStitcher.reset()
-                        lastFullRaw = ""
-                        lastFinalWindow = -1L
-                        workerGeneration = pending.generation
                     }
                     val begin = nowMs()
                     lastQueueWaitMs = (begin - pending.queuedAtMs).coerceAtLeast(0)
