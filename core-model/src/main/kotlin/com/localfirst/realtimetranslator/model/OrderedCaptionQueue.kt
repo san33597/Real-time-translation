@@ -81,7 +81,7 @@ class OrderedCaptionQueue(
         if (confirmedPrefix < committedWords.size) revisedStablePrefixes++
 
         if (safeCount > committedWords.size) {
-            appendWords(currentWords.subList(committedWords.size, safeCount), update.elapsedRealtimeMs)
+            appendWords(currentWords.subList(committedWords.size, safeCount))
         }
         // Only the aligned shared prefix is considered newly verified.
         if (safeCount >= committedWords.size) {
@@ -107,7 +107,7 @@ class OrderedCaptionQueue(
         return true
     }
 
-    private fun appendWords(words: List<String>, nowMs: Long) {
+    private fun appendWords(words: List<String>) {
         if (words.isEmpty()) return
         for (word in words) {
             // Merge fresh words into an undisplayed chunk to avoid a queue of
@@ -116,15 +116,6 @@ class OrderedCaptionQueue(
             if (last != null && canAppend(last, word)) {
                 pending.removeLast()
                 pending.addLast("$last $word")
-                continue
-            }
-            // First words may be shown promptly, without freezing the next
-            // few words into separate 950ms screens.
-            if (pending.isEmpty() && current.isNotBlank() && shownAtMs >= 0 &&
-                nowMs >= shownAtMs && nowMs - shownAtMs < 320 &&
-                canAppend(current, word)) {
-                current = "$current $word"
-                lastChangedAtMs = nowMs
                 continue
             }
             if (pending.size >= maxQueuedChunks) queueOverflows++
