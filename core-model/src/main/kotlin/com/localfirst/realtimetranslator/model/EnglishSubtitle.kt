@@ -41,6 +41,8 @@ data class EnglishSubtitleState(
     val partial: String = "",
     val activeUtteranceId: Long = 0,
     val displayCaption: String = "",
+    /** Prior fragment still visible in two-row overlay mode. */
+    val previousCaption: String = "",
     val captionUpdatedAtMs: Long = -1L,
     val diagnostics: CaptionDiagnostics = CaptionDiagnostics(),
 ) {
@@ -111,6 +113,7 @@ class EnglishSubtitleCoordinator(
                         .takeLast(maxFinalLines),
                 partial = "",
                 displayCaption = scheduler.visibleText,
+                previousCaption = scheduler.previousText,
                 captionUpdatedAtMs = scheduler.visibleAtMs,
                 diagnostics = displayState,
             )
@@ -125,6 +128,7 @@ class EnglishSubtitleCoordinator(
                 activeUtteranceId = update.utteranceId,
                 partial = if (canUpdatePartial) sanitized else state.partial,
                 displayCaption = scheduler.visibleText,
+                previousCaption = scheduler.previousText,
                 captionUpdatedAtMs = scheduler.visibleAtMs,
                 diagnostics = displayState,
             )
@@ -137,6 +141,7 @@ class EnglishSubtitleCoordinator(
         if (!scheduler.advance(nowMs)) return false
         state = state.copy(
             displayCaption = scheduler.visibleText,
+            previousCaption = scheduler.previousText,
             captionUpdatedAtMs = scheduler.visibleAtMs,
             diagnostics = displayDiagnostics(state.diagnostics),
         )
@@ -152,7 +157,7 @@ class EnglishSubtitleCoordinator(
 
     @Synchronized fun gap() {
         scheduler.gap()
-        state = state.copy(partial = "", displayCaption = "",
+        state = state.copy(partial = "", displayCaption = "", previousCaption = "",
             captionUpdatedAtMs = 0L,
             diagnostics = displayDiagnostics(state.diagnostics))
         lastPartialAt = Long.MIN_VALUE

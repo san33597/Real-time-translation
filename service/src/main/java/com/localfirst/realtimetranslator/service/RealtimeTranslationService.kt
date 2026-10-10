@@ -53,9 +53,9 @@ class RealtimeTranslationService : Service() {
         }
         scope.launch {
             combine(SessionBus.state, SessionBus.englishSubtitles,
-                SessionBus.overlayEnabled, SessionBus.appVisible
-            ) { state, subtitle, enabled, appVisible ->
-                OverlayFrame(state, subtitle, enabled, appVisible)
+                SessionBus.overlayEnabled, SessionBus.appVisible, SessionBus.overlayTwoLines
+            ) { state, subtitle, enabled, appVisible, twoLines ->
+                OverlayFrame(state, subtitle, enabled, appVisible, twoLines)
             }.collect { frame ->
                 floatingCaptions.render(frame)
             }

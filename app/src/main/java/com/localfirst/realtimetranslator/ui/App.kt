@@ -48,6 +48,8 @@ fun RealtimeTranslatorApp(
     overlayEnabled: Boolean,
     overlayAllowed: Boolean,
     onToggleOverlay: (Boolean) -> Unit,
+    overlayTwoLines: Boolean,
+    onToggleOverlayTwoLines: (Boolean) -> Unit,
     message: String?,
     onStart: (AudioSource) -> Unit,
     onStop: () -> Unit,
@@ -62,7 +64,7 @@ fun RealtimeTranslatorApp(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("R3.4 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
+                Text("R3.5 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
                 Text("离线英语识别测试 · 暂不翻译 · 不保存音频和识别内容")
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
@@ -70,7 +72,8 @@ fun RealtimeTranslatorApp(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text("English captions", style = MaterialTheme.typography.labelLarge)
-                        val caption = OverlayCaptionText.latest(englishSubtitles, 100)
+                        val (previous, current) = OverlayCaptionText.rows(englishSubtitles, overlayTwoLines)
+                        val caption = listOf(previous, current).filter(String::isNotBlank).joinToString("\n")
                         if (caption.isNotBlank()) {
                             Text(caption, style = MaterialTheme.typography.titleMedium,
                                 maxLines = 3)
@@ -119,6 +122,27 @@ fun RealtimeTranslatorApp(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = if (stats.droppedWindows > 0) MaterialTheme.colorScheme.error
                                         else MaterialTheme.colorScheme.onSurface)
+                            }
+                            asrStats?.let { stats ->
+                                Text(
+                                    "输入帧：${stats.inputFrames} · 当前峰值 ${stats.inputPeakPermille / 10.0}%" +
+                                        " · RMS ${stats.inputRmsPermille / 10.0}%",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Text(
+                                    "已提交窗口：${stats.queuedWindows} · 空识别：${stats.emptyResults}" +
+                                        " · 重叠去重后为空：${stats.overlapOnlyResults}" +
+                                        " · 最近排队等待：${stats.lastQueueWaitMs}ms",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (stats.droppedWindows > 0)
+                                        MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    "Parakeet 当前为固定重叠窗口，无 VAD / 能量阈值过滤。" +
+                                        "空识别不等于音频未被采集。",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
                             }
                             Text("最近 ASR 更新（仅内存，停止后清空）",
                                 style = MaterialTheme.typography.labelLarge)
@@ -173,6 +197,16 @@ fun RealtimeTranslatorApp(
                     },
                     style = MaterialTheme.typography.bodySmall,
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("双行滚动字幕（上一句 + 最新句）",
+                        modifier = Modifier.weight(1f).padding(top = 12.dp))
+                    Switch(checked = overlayTwoLines, onCheckedChange = onToggleOverlayTwoLines)
+                }
+                Text("默认双行；关闭后显示最新片段。切换不影响 ASR 原文。",
+                    style = MaterialTheme.typography.bodySmall)
                 Text("选择声音来源（静音不会自动切换到麦克风）")
                 Row(modifier = Modifier.fillMaxWidth()) {
                     RadioButton(
@@ -212,7 +246,7 @@ fun RealtimeTranslatorApp(
                 }
                 OutlinedButton(onClick = onStop, enabled = !idle) { Text("停止采集") }
                 Text(
-                    "R3.4 Parakeet 为分块离线 ASR，字幕可能延迟数秒；原 Zipformer 流式模式可随时回退。",
+                    "R3.5 Parakeet 为分块离线 ASR，字幕可能延迟数秒；原 Zipformer 流式模式可随时回退。",
                     style = MaterialTheme.typography.bodySmall
                 )
             }

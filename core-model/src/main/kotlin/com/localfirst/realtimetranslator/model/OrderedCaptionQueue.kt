@@ -10,10 +10,10 @@ package com.localfirst.realtimetranslator.model
  * guaranteed correct. Revisions to already queued words are reported.
  */
 class OrderedCaptionQueue(
-    private val maxChunkCharacters: Int = 60,
+    private val maxChunkCharacters: Int = 44,
     private val maxChunkWords: Int = 9,
     private val maxQueuedChunks: Int = 48,
-    private val standardHoldMs: Long = 950,
+    private val standardHoldMs: Long = 750,
 ) {
     init {
         require(maxChunkCharacters >= 16 && maxChunkWords >= 2)
@@ -26,6 +26,7 @@ class OrderedCaptionQueue(
     private var committedWords = emptyList<String>()
     private var newUtteranceBoundary = false
     private var current: String = ""
+    private var previous: String = ""
     private var shownAtMs: Long = -1
     private var lastChangedAtMs: Long = -1
 
@@ -37,6 +38,7 @@ class OrderedCaptionQueue(
         private set
     val queueDepth: Int get() = pending.size
     val visibleText: String get() = current
+    val previousText: String get() = previous
     val visibleAtMs: Long get() = lastChangedAtMs
 
     fun reset() {
@@ -46,6 +48,7 @@ class OrderedCaptionQueue(
         committedWords = emptyList()
         newUtteranceBoundary = false
         current = ""
+        previous = ""
         shownAtMs = -1
         lastChangedAtMs = -1
         displayedChunks = 0
@@ -61,6 +64,7 @@ class OrderedCaptionQueue(
         newUtteranceBoundary = false
         lastUtteranceId = null
         current = ""
+        previous = ""
         shownAtMs = -1
         lastChangedAtMs = -1
     }
@@ -98,12 +102,15 @@ class OrderedCaptionQueue(
     /** Must be called from the foreground service, even while ASR emits no text. */
     fun advance(nowMs: Long): Boolean {
         if (pending.isEmpty()) return false
-        val waiting = if (pending.size >= 8) 400L
-            else if (pending.size >= 4) 650L
+        // When several confirmed fragments arrive at once, scroll quickly rather
+        // than building seconds of caption lag; the previous line stays readable.
+        val waiting = if (pending.size >= 4) 180L
+            else if (pending.size >= 2) 320L
             else standardHoldMs
         if (current.isNotBlank() && shownAtMs >= 0 &&
             nowMs >= shownAtMs && nowMs - shownAtMs < waiting) return false
 
+        previous = current
         current = pending.removeFirst()
         shownAtMs = nowMs
         lastChangedAtMs = nowMs
