@@ -50,9 +50,10 @@ class EnglishSubtitleCoordinatorTest {
         assertTrue(longText.length > 240)
         assertTrue(coordinator.accept(event(0, 0, longText, false, 0)))
         assertEquals(longText, coordinator.state.partial)
-        assertTrue(coordinator.state.displayCaption.startsWith("first words"))
+        assertEquals("", coordinator.state.displayCaption)
         assertEquals(longText, coordinator.state.diagnostics.latestRaw)
         assertTrue(coordinator.accept(event(0, 1, longText, true, 1)))
+        assertTrue(coordinator.state.displayCaption.startsWith("first words"))
         assertEquals(longText, coordinator.state.committed.last().text)
     }
 
