@@ -108,6 +108,21 @@ class ParakeetAudioChunkerTest {
         // will appear 1920ms after the first, versus 2560ms in baseline.
     }
 
+    @Test fun overlapStatisticsObserveButNeverModifyDedupBehavior() {
+        val stitcher = ParakeetOverlapStitcher()
+        assertEquals("SHE IS GOING DOWN", stitcher.append("SHE IS GOING DOWN"))
+        assertEquals(0, stitcher.lastDuplicateWords)
+        assertEquals("DOWN AGAIN", stitcher.append("DOWN AGAIN"))
+        assertEquals(1, stitcher.lastDuplicateWords)
+        assertEquals("", stitcher.append("DOWN AGAIN"))
+        assertEquals(2, stitcher.lastDuplicateWords)
+        assertEquals("", stitcher.append(" "))
+        assertEquals(0, stitcher.lastDuplicateWords)
+        stitcher.reset()
+        assertEquals(0, stitcher.lastDuplicateWords)
+        assertEquals("DOWN AGAIN", stitcher.append("DOWN AGAIN"))
+    }
+
     @Test fun r35LegacyWindowMatchesTheOriginalDefaultChunker() {
         val preset = ParakeetWindowPreset.LEGACY
         val original = ParakeetAudioChunker()
