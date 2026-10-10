@@ -155,6 +155,20 @@ fun RealtimeTranslatorApp(
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
+                            asrStats?.let { stats ->
+                                Text(
+                                    "最近去重单词：${stats.lastRemovedOverlapWords} · 累计：${stats.totalRemovedOverlapWords}",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Text("Parakeet 解码器原文（截取末尾，仅内存）",
+                                    style = MaterialTheme.typography.labelLarge)
+                                Text(stats.lastDecoderExcerpt.ifBlank { "尚无非空解码结果" },
+                                    style = MaterialTheme.typography.bodySmall)
+                                Text("经窗口重叠去重后上报（截取末尾）",
+                                    style = MaterialTheme.typography.labelLarge)
+                                Text(stats.lastEmittedExcerpt.ifBlank { "本窗口未产生新文字" },
+                                    style = MaterialTheme.typography.bodySmall)
+                            }
                             Text("最近 ASR 更新（仅内存，停止后清空）",
                                 style = MaterialTheme.typography.labelLarge)
                             debug.recent.takeLast(6).forEach { entry ->
