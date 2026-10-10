@@ -31,6 +31,19 @@ class OverlayCaptionTextTest {
         assertFalse(OverlayCaptionText.isFresh(state, nowMs = 3_500L))
     }
 
+    @Test fun dualRowsPreserveOrderAndSingleRowKeepsNewest() {
+        val state = EnglishSubtitleState(
+            sessionId = "s",
+            displayCaption = "CURRENT RECOGNIZED WORDS",
+            previousCaption = "PREVIOUS RECOGNIZED WORDS",
+            captionUpdatedAtMs = 200L,
+        )
+        assertEquals("PREVIOUS RECOGNIZED WORDS" to "CURRENT RECOGNIZED WORDS",
+            OverlayCaptionText.rows(state, twoLines = true))
+        assertEquals("" to "CURRENT RECOGNIZED WORDS",
+            OverlayCaptionText.rows(state, twoLines = false))
+    }
+
     @Test fun audioGapMustNotBringBackEarlierFinal() {
         val state = EnglishSubtitleState(
             committed = listOf(EnglishSubtitle(0, "OLD FINAL WORDS")),
@@ -38,6 +51,7 @@ class OverlayCaptionTextTest {
             captionUpdatedAtMs = 0,
         )
         assertEquals("", OverlayCaptionText.latest(state))
+        assertEquals("" to "", OverlayCaptionText.rows(state, true))
     }
 
     @Test fun noOverlayWhileAppVisibleOrStoppedOrDisabled() {
