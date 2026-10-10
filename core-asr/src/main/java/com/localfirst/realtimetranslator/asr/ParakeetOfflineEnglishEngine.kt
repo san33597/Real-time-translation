@@ -190,7 +190,8 @@ class ParakeetOfflineEnglishEngine(
                             continue
                         }
                         val start = nowMs()
-                        val stream = model.createStream()
+                        try {
+                            val stream = model.createStream()
                         val raw = try {
                             stream.acceptWaveform(wave, 16000)
                             model.decode(stream)
@@ -215,6 +216,15 @@ class ParakeetOfflineEnglishEngine(
                         if (safe.isNotBlank()) {
                             onUpdate(AsrUpdate(identity.sessionId, identity.audioEpoch,
                                 pending.window.index, 0L, safe, false, nowMs()))
+                        }
+                        } catch (e: Exception) {
+                            // A failed speculative decode must not end system audio
+                            // capture or prevent the final 3.2s window decoding.
+                            onProbe(ParakeetProbeDiagnostic(
+                                pending.window.index, "", "",
+                                queueWait, (nowMs() - start).coerceAtLeast(0),
+                                "probe-exception", pending.window.segmentId,
+                                pending.window.startSample, pending.window.endSample))
                         }
                         continue
                     }
