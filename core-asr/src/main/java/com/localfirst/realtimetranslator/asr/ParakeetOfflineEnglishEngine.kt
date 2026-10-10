@@ -311,7 +311,8 @@ class ParakeetOfflineEnglishEngine(
                         val id = if (previewMode == ParakeetPreviewMode.EARLY)
                             pending.window.index else utterance++
                         onUpdate(AsrUpdate(identity.sessionId, identity.audioEpoch,
-                            id, 1L, merged, true, nowMs()))
+                            id, if (previewMode == ParakeetPreviewMode.EARLY) 1L else 0L,
+                            merged, true, nowMs()))
                     }
                     publishStats()
                 } finally {
