@@ -73,7 +73,7 @@ fun RealtimeTranslatorApp(
                     ) {
                         Text("English captions", style = MaterialTheme.typography.labelLarge)
                         val (previous, current) = OverlayCaptionText.rows(englishSubtitles, overlayTwoLines)
-                        val caption = listOf(previous, current).filter(String::isNotBlank).joinToString("\\n")
+                        val caption = listOf(previous, current).filter(String::isNotBlank).joinToString("\n")
                         if (caption.isNotBlank()) {
                             Text(caption, style = MaterialTheme.typography.titleMedium,
                                 maxLines = 3)
