@@ -9,6 +9,8 @@ import com.localfirst.realtimetranslator.model.AsrRuntimeStats
 import com.localfirst.realtimetranslator.model.AsrUpdate
 import com.localfirst.realtimetranslator.model.ParakeetAudioChunker
 import com.localfirst.realtimetranslator.model.ParakeetOverlapStitcher
+import com.localfirst.realtimetranslator.model.ParakeetGuardedOverlapStitcher
+import com.localfirst.realtimetranslator.model.ParakeetStitchMode
 import com.localfirst.realtimetranslator.model.ParakeetWindowPreset
 import com.localfirst.realtimetranslator.model.PcmFrame
 import com.localfirst.realtimetranslator.model.SessionIdentity
@@ -37,6 +39,8 @@ data class ParakeetWindowDiagnostic(
     val removedWords: Int,
     val queueWaitMs: Long,
     val decodeMs: Long,
+    val stitchMode: String,
+    val stitchReason: String,
 )
 
 class ParakeetOfflineEnglishEngine(
@@ -48,6 +52,7 @@ class ParakeetOfflineEnglishEngine(
     private val onDecode: (ParakeetWindowDiagnostic) -> Unit = {},
     private val onFailure: (Throwable) -> Unit,
     private val preset: ParakeetWindowPreset = ParakeetWindowPreset.LEGACY,
+    private val stitchMode: ParakeetStitchMode = ParakeetStitchMode.LEGACY,
 ) : AsrEngine {
     private data class PendingWindow(
         val window: ParakeetAudioChunker.Window,
@@ -105,7 +110,8 @@ class ParakeetOfflineEnglishEngine(
     // UNDISTPATCHED enters the channel receive loop before returning, ensuring
     // that cancellation still runs the worker finally/release block.
     private val worker = scope.launch(start = CoroutineStart.UNDISPATCHED) {
-        val stitcher = ParakeetOverlapStitcher()
+        val legacyStitcher = ParakeetOverlapStitcher()
+        val guardedStitcher = ParakeetGuardedOverlapStitcher()
         var workerGeneration = generation
         var utterance = 0L
         try {
@@ -114,7 +120,8 @@ class ParakeetOfflineEnglishEngine(
                 try {
                     if (pending.generation != generation) continue
                     if (workerGeneration != pending.generation) {
-                        stitcher.reset()
+                        legacyStitcher.reset()
+                        guardedStitcher.reset()
                         workerGeneration = pending.generation
                     }
                     val begin = nowMs()
@@ -134,9 +141,19 @@ class ParakeetOfflineEnglishEngine(
                     lastWindowTurnaroundMs = (nowMs() - pending.queuedAtMs).coerceAtLeast(0)
                     decoded.incrementAndGet()
                     if (text.isBlank()) emptyResults.incrementAndGet()
-                    val merged = stitcher.append(text)
-                    // Diagnostics only: preserve the existing overlap matching and ASR output.
-                    val removedWords = stitcher.lastDuplicateWords
+                    val merged = when (stitchMode) {
+                        ParakeetStitchMode.LEGACY -> legacyStitcher.append(text)
+                        ParakeetStitchMode.GUARDED ->
+                            guardedStitcher.append(text, pending.window.index)
+                    }
+                    val removedWords = when (stitchMode) {
+                        ParakeetStitchMode.LEGACY -> legacyStitcher.lastDuplicateWords
+                        ParakeetStitchMode.GUARDED -> guardedStitcher.lastDuplicateWords
+                    }
+                    val stitchReason = when (stitchMode) {
+                        ParakeetStitchMode.LEGACY -> "legacy-exact-suffix-prefix"
+                        ParakeetStitchMode.GUARDED -> guardedStitcher.lastReason
+                    }
                     lastRemovedOverlapWords = removedWords
                     removedOverlapWords.addAndGet(removedWords.toLong())
                     lastDecoderExcerpt = text.takeLast(160)
@@ -148,6 +165,8 @@ class ParakeetOfflineEnglishEngine(
                         removedWords = removedWords,
                         queueWaitMs = lastQueueWaitMs,
                         decodeMs = elapsed,
+                        stitchMode = stitchMode.wireId,
+                        stitchReason = stitchReason,
                     ))
                     if (text.isNotBlank() && merged.isBlank()) overlapOnlyResults.incrementAndGet()
                     if (merged.isNotBlank()) {
