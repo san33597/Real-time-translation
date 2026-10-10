@@ -14,6 +14,7 @@ class OrderedCaptionQueue(
     private val maxChunkWords: Int = 9,
     private val maxQueuedChunks: Int = 48,
     private val standardHoldMs: Long = 750,
+    private var pacing: CaptionPacing = CaptionPacing.STABLE,
 ) {
     init {
         require(maxChunkCharacters >= 16 && maxChunkWords >= 2)
@@ -40,6 +41,9 @@ class OrderedCaptionQueue(
     val visibleText: String get() = current
     val previousText: String get() = previous
     val visibleAtMs: Long get() = lastChangedAtMs
+
+    /** Only switch between sessions. Changing pacing never discards words. */
+    fun setPacing(next: CaptionPacing) { pacing = next }
 
     fun reset() {
         pending.clear()
@@ -104,9 +108,14 @@ class OrderedCaptionQueue(
         if (pending.isEmpty()) return false
         // When several confirmed fragments arrive at once, scroll quickly rather
         // than building seconds of caption lag; the previous line stays readable.
-        val waiting = if (pending.size >= 4) 180L
-            else if (pending.size >= 2) 320L
-            else standardHoldMs
+        val waiting = when (pacing) {
+            CaptionPacing.STABLE -> if (pending.size >= 4) 180L
+                else if (pending.size >= 2) 320L
+                else standardHoldMs
+            CaptionPacing.FAST -> if (pending.size >= 4) 120L
+                else if (pending.size >= 2) 220L
+                else minOf(420L, standardHoldMs)
+        }
         if (current.isNotBlank() && shownAtMs >= 0 &&
             nowMs >= shownAtMs && nowMs - shownAtMs < waiting) return false
 
