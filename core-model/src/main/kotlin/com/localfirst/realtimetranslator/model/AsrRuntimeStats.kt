@@ -22,4 +22,10 @@ data class AsrRuntimeStats(
     val lastWindowTurnaroundMs: Long = 0,
     val windowMs: Int = 0,
     val overlapMs: Int = 0,
+    /** Decoder text BEFORE the overlap stitcher, last 160 characters, memory only. */
+    val lastDecoderExcerpt: String = "",
+    /** Text emitted AFTER exact-overlap stitching, last 160 characters. */
+    val lastEmittedExcerpt: String = "",
+    val lastRemovedOverlapWords: Int = 0,
+    val totalRemovedOverlapWords: Long = 0,
 )
