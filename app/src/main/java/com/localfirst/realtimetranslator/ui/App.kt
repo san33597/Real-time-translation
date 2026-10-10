@@ -45,6 +45,7 @@ fun RealtimeTranslatorApp(
     onStop: () -> Unit,
 ) {
     var selected by rememberSaveable { mutableStateOf(AudioSource.SYSTEM) }
+    var showDiagnostics by rememberSaveable { mutableStateOf(false) }
     val idle = state is SessionState.Idle
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -53,7 +54,7 @@ fun RealtimeTranslatorApp(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("R3.2 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
+                Text("R3.3 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
                 Text("离线英语识别测试 · 暂不翻译 · 不保存音频和识别内容")
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
@@ -71,6 +72,49 @@ fun RealtimeTranslatorApp(
                                 else "Start capture to display English subtitles.",
                                 style = MaterialTheme.typography.bodyMedium
                             )
+                        }
+                    }
+                }
+                OutlinedButton(onClick = { showDiagnostics = !showDiagnostics }) {
+                    Text(if (showDiagnostics) "收起识别诊断（仅内存）" else "展开识别诊断：ASR 原文 vs 字幕")
+                }
+                if (showDiagnostics) {
+                    val debug = englishSubtitles.diagnostics
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text("ASR 原始最近输出（与字幕独立）",
+                                style = MaterialTheme.typography.labelLarge)
+                            Text(debug.latestRaw.takeLast(450).ifBlank { "尚无识别结果" },
+                                style = MaterialTheme.typography.bodySmall)
+                            Text("当前实际显示的字幕",
+                                style = MaterialTheme.typography.labelLarge)
+                            Text(englishSubtitles.displayCaption.ifBlank { "暂无已确认字幕" })
+                            Text(
+                                "Partial：${debug.partialUpdates} / Final：${debug.finalUpdates}" +
+                                    " · 已显示片段：${debug.displayedChunks}" +
+                                    " · 待显示片段：${debug.queuedChunks}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                "字幕队列溢出：${debug.queueOverflows} · ASR 稳定前缀改写：${debug.correctedPrefixes}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (debug.queueOverflows > 0)
+                                    MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text("最近 ASR 更新（仅内存，停止后清空）",
+                                style = MaterialTheme.typography.labelLarge)
+                            debug.recent.takeLast(6).forEach { entry ->
+                                Text(
+                                    "${if (entry.isFinal) "Final" else "Partial"}" +
+                                        " #${entry.utteranceId} r${entry.revision}：" +
+                                        entry.rawExcerpt.takeLast(130),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
                         }
                     }
                 }
