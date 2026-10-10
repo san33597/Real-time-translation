@@ -39,6 +39,9 @@ data class EnglishSubtitleState(
     val audioEpoch: Long = 0,
     val committed: List<EnglishSubtitle> = emptyList(),
     val partial: String = "",
+    /** Provisional R3.11 overlay only; never enters the confirmed caption FIFO. */
+    val previewCaption: String = "",
+    val previewUpdatedAtMs: Long = -1L,
     val activeUtteranceId: Long = 0,
     val displayCaption: String = "",
     /** Prior fragment still visible in two-row overlay mode. */
@@ -69,6 +72,12 @@ class EnglishSubtitleCoordinator(
     private var lastPartialAt = Long.MIN_VALUE
     private var lastFinalId = -1L
     private val scheduler = OrderedCaptionQueue()
+    private var earlyPreviewEnabled = false
+
+    /** Set before begin(); preview text never becomes committed history. */
+    @Synchronized fun setEarlyPreviewEnabled(enabled: Boolean) {
+        earlyPreviewEnabled = enabled
+    }
 
     @Synchronized fun setCaptionPacing(pacing: CaptionPacing) {
         scheduler.setPacing(pacing)
@@ -95,7 +104,8 @@ class EnglishSubtitleCoordinator(
         }
 
         val sanitized = update.text.replace(Regex("\\s+"), " ").trim()
-        scheduler.ingest(update.copy(text = sanitized))
+        if (update.isFinal || !earlyPreviewEnabled)
+            scheduler.ingest(update.copy(text = sanitized))
         lastRevision = update.revision
         val old = state.diagnostics
         val trace = AsrTrace(update.elapsedRealtimeMs, update.utteranceId,
@@ -116,6 +126,8 @@ class EnglishSubtitleCoordinator(
                     (state.committed + EnglishSubtitle(update.utteranceId, sanitized))
                         .takeLast(maxFinalLines),
                 partial = "",
+                previewCaption = "",
+                previewUpdatedAtMs = -1L,
                 displayCaption = scheduler.visibleText,
                 previousCaption = scheduler.previousText,
                 captionUpdatedAtMs = scheduler.visibleAtMs,
@@ -131,6 +143,8 @@ class EnglishSubtitleCoordinator(
             state = state.copy(
                 activeUtteranceId = update.utteranceId,
                 partial = if (canUpdatePartial) sanitized else state.partial,
+                previewCaption = if (earlyPreviewEnabled) sanitized else "",
+                previewUpdatedAtMs = if (earlyPreviewEnabled) update.elapsedRealtimeMs else -1L,
                 displayCaption = scheduler.visibleText,
                 previousCaption = scheduler.previousText,
                 captionUpdatedAtMs = scheduler.visibleAtMs,
@@ -161,7 +175,8 @@ class EnglishSubtitleCoordinator(
 
     @Synchronized fun gap() {
         scheduler.gap()
-        state = state.copy(partial = "", displayCaption = "", previousCaption = "",
+        state = state.copy(partial = "", previewCaption = "", previewUpdatedAtMs = -1L,
+            displayCaption = "", previousCaption = "",
             captionUpdatedAtMs = 0L,
             diagnostics = displayDiagnostics(state.diagnostics))
         lastPartialAt = Long.MIN_VALUE
