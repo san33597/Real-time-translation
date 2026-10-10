@@ -14,6 +14,7 @@ import com.localfirst.realtimetranslator.model.AsrEngine
 import com.localfirst.realtimetranslator.model.AsrUpdate
 import com.localfirst.realtimetranslator.model.AsrModel
 import com.localfirst.realtimetranslator.model.AsrRuntimeStats
+import com.localfirst.realtimetranslator.model.ParakeetWindowPreset
 import com.localfirst.realtimetranslator.model.CaptureEvent
 import com.localfirst.realtimetranslator.model.CaptureStatus
 import com.localfirst.realtimetranslator.model.SessionRequest
@@ -31,6 +32,7 @@ class AndroidSessionResources(
     private val englishSink: (AsrUpdate) -> Unit,
     private val asrModel: AsrModel = AsrModel.ZIPFORMER,
     private val asrStatsSink: (AsrRuntimeStats) -> Unit = {},
+    private val parakeetPreset: ParakeetWindowPreset = ParakeetWindowPreset.BALANCED,
 ) : SessionResources {
     private var capture: AudioCapture? = null
     private var engine: AsrEngine? = null
@@ -57,7 +59,8 @@ class AndroidSessionResources(
                         ParakeetModelInstaller.directory(context),
                         SystemClock::elapsedRealtime, englishSink, asrStatsSink,
                         onFailure = { eventSink(CaptureEvent.ReadFailure(
-                            request.identity.sessionId, request.identity.audioEpoch)) })
+                            request.identity.sessionId, request.identity.audioEpoch)) },
+                        preset = parakeetPreset)
                 }
             }
         }
