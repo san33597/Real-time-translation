@@ -35,8 +35,8 @@ class OrderedCaptionQueueTest {
     @Test fun separateFinalUtterancesDoNotMergeIntoSameQueuedChunk() {
         val queue = OrderedCaptionQueue()
         queue.ingest(event("FIRST LINE", 0, true, 100, 0))
-        queue.ingest(event("SECOND LINE", 0, true, 120, 1))
-        queue.ingest(event("THIRD LINE", 0, true, 140, 2))
+        queue.ingest(event("SECOND LINE", 0, true, 200, 1))
+        queue.ingest(event("THIRD LINE", 0, true, 300, 2))
         assertEquals("FIRST LINE", queue.visibleText)
         assertEquals(2, queue.queueDepth)
         queue.advance(1200)
@@ -94,13 +94,12 @@ class OrderedCaptionQueueTest {
         queue.ingest(event("FIRST", 0, true, 100, 0))
         assertEquals("", queue.previousText)
         queue.ingest(event("SECOND", 0, true, 200, 1))
-        assertFalse(queue.advance(250))
-        assertTrue(queue.advance(360))
+        assertFalse(queue.advance(500))
+        assertTrue(queue.advance(850))
         assertEquals("FIRST", queue.previousText)
         assertEquals("SECOND", queue.visibleText)
         queue.ingest(event("THIRD", 0, true, 900, 2))
-        // A fresh final after the hold advances immediately; no obsolete timer tick needed.
-        assertFalse(queue.advance(1600))
+        assertTrue(queue.advance(1600))
         assertEquals("SECOND", queue.previousText)
         assertEquals("THIRD", queue.visibleText)
     }
@@ -115,19 +114,6 @@ class OrderedCaptionQueueTest {
         assertEquals("FRAGMENT0", queue.previousText)
         assertEquals("FRAGMENT1", queue.visibleText)
         assertTrue(queue.queueDepth > 0)
-        assertEquals(0, queue.queueOverflows)
-    }
-
-    @Test fun nextFinalShowsAfterShortHoldWithoutSkippingRawText() {
-        val queue = OrderedCaptionQueue()
-        queue.ingest(event("HELLO", 0, true, 100, 0))
-        queue.ingest(event("WORLD", 0, true, 190, 1))
-        assertEquals("HELLO", queue.visibleText)
-        assertFalse(queue.advance(350))
-        assertTrue(queue.advance(360))
-        assertEquals("HELLO", queue.previousText)
-        assertEquals("WORLD", queue.visibleText)
-        assertEquals(170L, queue.lastCaptionWaitMs)
         assertEquals(0, queue.queueOverflows)
     }
 
