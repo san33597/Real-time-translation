@@ -48,33 +48,64 @@ class ParakeetAudioChunkerTest {
         assertEquals("", s.append("   "))
     }
 
-    @Test fun windowPresetsHaveCorrectLengthsAndSafeWireFallback() {
-        assertEquals(2400, ParakeetWindowPreset.BALANCED.windowMs)
-        assertEquals(1920, ParakeetWindowPreset.BALANCED.hopMs)
-        assertEquals(1600, ParakeetWindowPreset.FAST.hopMs)
+    @Test fun r37PresetsKeepExactThreePointTwoSecondContext() {
+        assertEquals(3200, ParakeetWindowPreset.LEGACY.windowMs)
+        assertEquals(3200, ParakeetWindowPreset.SLIDING.windowMs)
+        assertEquals(640, ParakeetWindowPreset.LEGACY.overlapMs)
+        assertEquals(1280, ParakeetWindowPreset.SLIDING.overlapMs)
         assertEquals(2560, ParakeetWindowPreset.LEGACY.hopMs)
+        assertEquals(1920, ParakeetWindowPreset.SLIDING.hopMs)
         assertEquals(ParakeetWindowPreset.LEGACY, ParakeetWindowPreset.fromWire(null))
         assertEquals(ParakeetWindowPreset.LEGACY, ParakeetWindowPreset.fromWire("unknown"))
         assertEquals(ParakeetWindowPreset.LEGACY, ParakeetWindowPreset.fromWire("legacy-3200"))
-        assertEquals(ParakeetWindowPreset.FAST, ParakeetWindowPreset.fromWire("fast-2000"))
+        assertEquals(ParakeetWindowPreset.SLIDING, ParakeetWindowPreset.fromWire("sliding-3200-1280"))
+        // Both previously problematic short-window values are disabled.
+        assertEquals(ParakeetWindowPreset.LEGACY, ParakeetWindowPreset.fromWire("balanced-2400"))
+        assertEquals(ParakeetWindowPreset.LEGACY, ParakeetWindowPreset.fromWire("fast-2000"))
     }
 
-    @Test fun selectedBalancedWindowsKeepOverlapWithoutMissingInputSamples() {
-        val preset = ParakeetWindowPreset.BALANCED
+    @Test fun experimentalOverlapKeepsEveryWindowAt3200msAndPreservesSampleBoundaries() {
+        val window = ParakeetWindowPreset.SLIDING
         val output = mutableListOf<ParakeetAudioChunker.Window>()
         val assembler = ParakeetAudioChunker(
-            sampleRate = 1000, windowMs = preset.windowMs,
-            overlapMs = preset.overlapMs, minimumTailMs = 260)
-        val pcm = ShortArray(5000) { (it % 2000).toShort() }
-        assembler.append(pcm) { output.add(it) }
-        assertEquals(2, output.size)
-        assertEquals(2400, output[0].samples.size)
-        assertEquals(2400, output[1].samples.size)
-        assertArrayEquals(output[0].samples.copyOfRange(1920, 2400),
-            output[1].samples.copyOfRange(0, 480), 0.0001f)
-        assembler.finish { output.add(it) }
+            sampleRate = 1000, windowMs = window.windowMs,
+            overlapMs = window.overlapMs, minimumTailMs = 260)
+        val pcm = ShortArray(8000) { it.toShort() }
+        var start = 0
+        // Deliberately feed uneven frames to exercise copy boundaries.
+        while (start < pcm.size) {
+            val end = minOf(start + 73 + (start % 997), pcm.size)
+            assembler.append(pcm.copyOfRange(start, end)) { output.add(it) }
+            start = end
+        }
         assertEquals(3, output.size)
-        assertEquals(1160, output[2].samples.size)
+        output.forEach { assertEquals(3200, it.samples.size) }
+        assertArrayEquals(output[0].samples.copyOfRange(1920, 3200),
+            output[1].samples.copyOfRange(0, 1280), 0f)
+        assertArrayEquals(output[1].samples.copyOfRange(1920, 3200),
+            output[2].samples.copyOfRange(0, 1280), 0f)
+        assertEquals(pcm[3840] / 32768f, output[2].samples[0], 0f)
+        assertEquals(pcm[7039] / 32768f, output[2].samples.last(), 0f)
+        assembler.finish { output.add(it) }
+        assertEquals(4, output.size)
+        assertEquals(2240, output.last().samples.size)
+    }
+
+    @Test fun overlapChangesOnlyCadenceNotFirstWindow() {
+        val original = ParakeetAudioChunker(sampleRate = 1000)
+        val sliding = ParakeetAudioChunker(sampleRate = 1000,
+            windowMs = ParakeetWindowPreset.SLIDING.windowMs,
+            overlapMs = ParakeetWindowPreset.SLIDING.overlapMs)
+        val baseline = mutableListOf<ParakeetAudioChunker.Window>()
+        val experiment = mutableListOf<ParakeetAudioChunker.Window>()
+        val pcm = ShortArray(8000) { (it % 5000).toShort() }
+        original.append(pcm) { baseline.add(it) }
+        sliding.append(pcm) { experiment.add(it) }
+        assertEquals(2, baseline.size)
+        assertEquals(3, experiment.size)
+        assertArrayEquals(baseline.first().samples, experiment.first().samples, 0f)
+        // No changes to initial buffering; the second complete sliding window
+        // will appear 1920ms after the first, versus 2560ms in baseline.
     }
 
     @Test fun r35LegacyWindowMatchesTheOriginalDefaultChunker() {
