@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.localfirst.realtimetranslator.model.AudioSource
 import com.localfirst.realtimetranslator.model.AsrModel
 import com.localfirst.realtimetranslator.model.ParakeetWindowPreset
+import com.localfirst.realtimetranslator.model.ParakeetStitchMode
 import com.localfirst.realtimetranslator.model.AsrRuntimeStats
 import com.localfirst.realtimetranslator.model.CaptureStatus
 import com.localfirst.realtimetranslator.model.EnglishSubtitleState
@@ -39,6 +40,8 @@ fun RealtimeTranslatorApp(
     asrStats: AsrRuntimeStats?,
     asrModel: AsrModel,
     parakeetPreset: ParakeetWindowPreset,
+    stitchMode: ParakeetStitchMode,
+    onChooseStitchMode: (ParakeetStitchMode) -> Unit,
     onChooseParakeetPreset: (ParakeetWindowPreset) -> Unit,
     zipformerReady: Boolean,
     parakeetReady: Boolean,
@@ -71,7 +74,7 @@ fun RealtimeTranslatorApp(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("R3.8 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
+                Text("R3.9 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
                 Text("离线英语识别测试 · 不保存音频 · ASR 文字日志仅在主动开启后保存")
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
@@ -230,6 +233,22 @@ fun RealtimeTranslatorApp(
                             Text(preset.label, modifier = Modifier.padding(top = 12.dp))
                         }
                     }
+                    Text("窗口模式会影响解码次数；下面的去重算法单独 A/B 测试。",
+                        style = MaterialTheme.typography.bodySmall)
+                    Text("窗口文本衔接算法", style = MaterialTheme.typography.titleMedium)
+                    ParakeetStitchMode.entries.forEach { option ->
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            RadioButton(
+                                selected = stitchMode == option,
+                                onClick = { onChooseStitchMode(option) },
+                                enabled = idle && !installingModel,
+                            )
+                            Text(option.label, modifier = Modifier.padding(top = 12.dp))
+                        }
+                    }
+                    Text("实验模式只改变 Parakeet 解码后的文本去重：短句可能更完整，也可能出现重复。" +
+                        " 请开启 ASR 日志测试；切换模式需停止后重开。",
+                        style = MaterialTheme.typography.bodySmall)
                     Text("默认 640ms 保持 R3.5 识别节奏；1280ms 增加窗口频率，可能更及时，也可能产生重复或漏词。",
                         style = MaterialTheme.typography.bodySmall)
                 }
@@ -312,7 +331,7 @@ fun RealtimeTranslatorApp(
                 }
                 OutlinedButton(onClick = onStop, enabled = !idle) { Text("停止采集") }
                 Text(
-                    "R3.8 保持 R3.7 的识别窗口和字幕调度不变，新增可选诊断日志。",
+                    "R3.9 保留旧版去重作为默认；实验模式只改变窗口文本衔接，不改变 ASR 模型和字幕调度。",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
