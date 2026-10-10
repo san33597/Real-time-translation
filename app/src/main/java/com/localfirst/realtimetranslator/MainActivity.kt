@@ -142,7 +142,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         zipformerReady = EnglishModelInstaller.isReady(this)
         parakeetReady = ParakeetModelInstaller.isReady(this)
-        modelReady = zipformerReady
+        selectedAsr = if (parakeetReady) AsrModel.PARAKEET else AsrModel.ZIPFORMER
+        modelReady = if (selectedAsr == AsrModel.PARAKEET) parakeetReady else zipformerReady
         overlayAllowed = Settings.canDrawOverlays(this)
         setContent {
             val session by SessionBus.state.collectAsState()
