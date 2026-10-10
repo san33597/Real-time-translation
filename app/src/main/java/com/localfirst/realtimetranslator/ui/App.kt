@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.localfirst.realtimetranslator.model.AudioSource
 import com.localfirst.realtimetranslator.model.AsrModel
+import com.localfirst.realtimetranslator.model.ParakeetWindowPreset
 import com.localfirst.realtimetranslator.model.AsrRuntimeStats
 import com.localfirst.realtimetranslator.model.CaptureStatus
 import com.localfirst.realtimetranslator.model.EnglishSubtitleState
@@ -37,6 +38,8 @@ fun RealtimeTranslatorApp(
     captureStatus: CaptureStatus?,
     asrStats: AsrRuntimeStats?,
     asrModel: AsrModel,
+    parakeetPreset: ParakeetWindowPreset,
+    onChooseParakeetPreset: (ParakeetWindowPreset) -> Unit,
     zipformerReady: Boolean,
     parakeetReady: Boolean,
     onChooseAsr: (AsrModel) -> Unit,
@@ -64,7 +67,7 @@ fun RealtimeTranslatorApp(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("R3.5 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
+                Text("R3.6 · 英文实时字幕", style = MaterialTheme.typography.headlineMedium)
                 Text("离线英语识别测试 · 暂不翻译 · 不保存音频和识别内容")
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
@@ -144,6 +147,15 @@ fun RealtimeTranslatorApp(
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
+                            Text("字幕队列最近显示等待：${debug.lastCaptionWaitMs}ms",
+                                style = MaterialTheme.typography.bodySmall)
+                            asrStats?.let { stats ->
+                                Text(
+                                    "窗口长度：${stats.windowMs}ms · 重叠：${stats.overlapMs}ms" +
+                                        " · 解码周转：${stats.lastWindowTurnaroundMs}ms",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
                             Text("最近 ASR 更新（仅内存，停止后清空）",
                                 style = MaterialTheme.typography.labelLarge)
                             debug.recent.takeLast(6).forEach { entry ->
@@ -167,7 +179,23 @@ fun RealtimeTranslatorApp(
                         onClick = { onChooseAsr(AsrModel.PARAKEET) }, enabled = idle && !installingModel)
                     Text("Parakeet v3 INT8", modifier = Modifier.padding(top = 12.dp))
                 }
-                Text("Zipformer：${if (zipformerReady) "已安装" else "未安装"}；" +
+                if (asrModel == AsrModel.PARAKEET) {
+                    Text("Parakeet 识别窗口（停止采集后可切换）",
+                        style = MaterialTheme.typography.titleMedium)
+                    ParakeetWindowPreset.entries.forEach { preset ->
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            RadioButton(
+                                selected = parakeetPreset == preset,
+                                onClick = { onChooseParakeetPreset(preset) },
+                                enabled = idle && !installingModel,
+                            )
+                            Text(preset.label, modifier = Modifier.padding(top = 12.dp))
+                        }
+                    }
+                    Text("窗口越短，首次输出可能越快，但短词漏识别可能增加。请对同一片段对比。",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                Text("Zipformer：${if (zipformerReady)} "已安装" else "未安装"}；" +
                     "Parakeet：${if (parakeetReady) "已安装" else "未安装"}",
                     style = MaterialTheme.typography.bodySmall)
                 Text(if (modelReady) "当前模型文件：已就绪" else "当前模型未安装，请先导入")
@@ -246,7 +274,7 @@ fun RealtimeTranslatorApp(
                 }
                 OutlinedButton(onClick = onStop, enabled = !idle) { Text("停止采集") }
                 Text(
-                    "R3.5 Parakeet 为分块离线 ASR，字幕可能延迟数秒；原 Zipformer 流式模式可随时回退。",
+                    "R3.6 Parakeet 为分块离线 ASR；可对比 2.4s / 2.0s / 3.2s 的实时性与准确率。",,
                     style = MaterialTheme.typography.bodySmall
                 )
             }
