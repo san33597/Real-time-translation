@@ -3,9 +3,9 @@ package com.localfirst.realtimetranslator.caption.preview
 /**
  * R3.12 Adaptive Preview Engine.
  *
- * Converts unstable ASR partial results into a safer early caption.
- * This first version intentionally avoids model changes and only improves
- * the caption timing layer.
+ * Converts unstable ASR partial results into safer early captions.
+ * This layer focuses on reducing subtitle lag while avoiding aggressive
+ * display of tokens that are likely to be rewritten by ASR.
  */
 class AdaptivePreviewEngine {
 
@@ -19,7 +19,7 @@ class AdaptivePreviewEngine {
         return PreviewSegment(
             id = id,
             partialText = partialText,
-            stablePrefix = stablePrefix(partialText),
+            stablePrefix = stablePrefix(partialText, confidence, speechRate),
             confidence = confidence,
             speechRate = speechRate,
             createdAt = now
@@ -27,14 +27,31 @@ class AdaptivePreviewEngine {
     }
 
     /**
-     * Keeps a conservative prefix that is less likely to be rewritten.
-     * Later versions can replace this with ASR token timestamps.
+     * Extracts the portion suitable for early rendering.
+     *
+     * Fast speech needs earlier feedback, while low confidence ASR output
+     * needs a more conservative prefix to avoid visible corrections.
      */
-    private fun stablePrefix(text: String): String {
-        val words = text.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+    private fun stablePrefix(
+        text: String,
+        confidence: Float,
+        speechRate: Float
+    ): String {
+        val words = text.trim()
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
+
+        if (words.isEmpty()) return ""
         if (words.size <= 2) return text.trim()
 
-        return words.dropLast(1).joinToString(" ")
+        val keepCount = when {
+            confidence < 0.45f -> maxOf(1, words.size - 2)
+            speechRate >= 3.0f -> words.size - 1
+            speechRate >= 2.0f -> words.size - 1
+            else -> words.size - 1
+        }
+
+        return words.take(keepCount).joinToString(" ")
     }
 
     /**
